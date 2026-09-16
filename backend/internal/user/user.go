@@ -4,8 +4,6 @@ import (
 	"context"
 	"errors"
 	"fmt"
-	"log"
-	"os"
 	"regexp"
 	"time"
 
@@ -18,7 +16,7 @@ var (
 	ErrEmailTaken      = errors.New("email already registered")
 	ErrInvalidEmail    = errors.New("invalid email format")
 	ErrPasswordTooWeak = errors.New("password must be at least 8 characters")
-	ErrUserNotFound = errors.New("user not found")
+	ErrUserNotFound    = errors.New("user not found")
 )
 
 var emailRegex = regexp.MustCompile(`^[a-zA-Z0-9._%+\-]+@[a-zA-Z0-9.\-]+\.[a-zA-Z]{2,}$`)
@@ -42,17 +40,6 @@ type Repository struct {
 
 func NewRepository(db *pgxpool.Pool) *Repository {
 	return &Repository{db: db}
-}
-
-func RunMigrations(db *pgxpool.Pool) {
-	migration, err := os.ReadFile("migrations/001_create_users.sql")
-	if err != nil {
-		log.Printf("warning: could not read migration file: %v", err)
-		return
-	}
-	if _, err := db.Exec(context.Background(), string(migration)); err != nil {
-		log.Printf("warning: migration already applied or failed: %v", err)
-	}
 }
 
 func (r *Repository) Create(ctx context.Context, name, email, password string) (*User, error) {

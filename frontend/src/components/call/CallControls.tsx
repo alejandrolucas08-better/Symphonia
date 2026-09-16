@@ -11,8 +11,18 @@ import {
 import { useDemo } from "../../contexts/DemoContext";
 import { LanguageSelect } from "../ui/LanguageSelect";
 import { StatusBadge } from "../ui/StatusBadge";
+import type { LanguageCode } from "../../types/demo";
 
-export function CallControls({ onEnd }: { onEnd: () => void }) {
+export function CallControls({
+  onEnd,
+  onLanguageChange,
+}: {
+  onEnd: () => void;
+  onLanguageChange?: (patch: {
+    spoken?: LanguageCode;
+    heard?: LanguageCode;
+  }) => void;
+}) {
   const { settings, updateSettings } = useDemo();
   const [languagesOpen, setLanguagesOpen] = useState(false);
   return (
@@ -136,12 +146,18 @@ export function CallControls({ onEnd }: { onEnd: () => void }) {
           <LanguageSelect
             label="eu falo"
             value={settings.spoken}
-            onChange={(spoken) => updateSettings({ spoken })}
+            onChange={(spoken) => {
+              updateSettings({ spoken });
+              onLanguageChange?.({ spoken });
+            }}
           />
           <LanguageSelect
             label="quero ouvir"
             value={settings.heard}
-            onChange={(heard) => updateSettings({ heard })}
+            onChange={(heard) => {
+              updateSettings({ heard });
+              onLanguageChange?.({ heard });
+            }}
           />
         </section>
       )}

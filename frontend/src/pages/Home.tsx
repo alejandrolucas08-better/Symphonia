@@ -2,14 +2,19 @@ import { useState } from "react";
 import { ArrowUpRight, AudioLines, Plus } from "lucide-react";
 import { useNavigate } from "react-router-dom";
 import { AppHeader } from "../components/layout/AppHeader";
-import { ActionLink } from "../components/ui/Button";
+import { ActionButton } from "../components/ui/Button";
 import { useDemo } from "../contexts/DemoContext";
+import { useAuth } from "../hooks/useAuth";
+import { api, userFacingError } from "../services/api";
 
 export function Home() {
-  const { name } = useDemo();
+  const { name, settings } = useDemo();
+  const { token, user } = useAuth();
   const navigate = useNavigate();
   const [code, setCode] = useState("");
   const [error, setError] = useState("");
+  const [createPending, setCreatePending] = useState(false);
+  const [joinPending, setJoinPending] = useState(false);
   const hour = new Date().getHours();
   const greeting =
     hour < 12 ? "bom dia" : hour < 18 ? "boa tarde" : "boa noite";
@@ -44,7 +49,27 @@ export function Home() {
               <br />
               uma nova conexão.
             </p>
-            <ActionLink to="/call/demo-room/setup">Criar chamada</ActionLink>
+            <ActionButton
+              disabled={createPending}
+              aria-busy={createPending}
+              onClick={async () => {
+                if (!token || createPending) return;
+                setCreatePending(true);
+                setError("");
+                try {
+                  const { data } = await api.createCall(token, {
+                    spoken_language: settings.spoken,
+                    heard_language: settings.heard,
+                  });
+                  navigate(`/call/${encodeURIComponent(data.code)}/setup`);
+                } catch (err) {
+                  setError(userFacingError(err));
+                  setCreatePending(false);
+                }
+              }}
+            >
+              {createPending ? "Criando chamada..." : "Criar chamada"}
+            </ActionButton>
           </section>
           <section className="home-action">
             <div className="action-number">
@@ -61,14 +86,37 @@ export function Home() {
               <br />a conversa espera por você.
             </p>
             <form
-              onSubmit={(event) => {
+              onSubmit={async (event) => {
                 event.preventDefault();
                 const clean = code.trim().toLowerCase();
                 if (!/^[a-z0-9]+(?:-[a-z0-9]+)*$/.test(clean)) {
                   setError("Use letras, números e hífens entre palavras.");
                   return;
                 }
-                navigate(`/call/${encodeURIComponent(clean)}/setup`);
+                if (!token || joinPending) return;
+                setJoinPending(true);
+                setError("");
+                try {
+                  const { data } = await api.getCall(token, clean);
+                  if (data.status === "ended") {
+                    setError("Esta chamada já foi encerrada.");
+                    return;
+                  }
+                  const alreadyJoined = data.participants.some(
+                    (participant) => participant.user_id === user?.id,
+                  );
+                  if (data.participants.length >= 2 && !alreadyJoined) {
+                    setError("A chamada já está cheia.");
+                    return;
+                  }
+                  navigate(
+                    `/call/${encodeURIComponent(data.code)}/setup`,
+                  );
+                } catch (err) {
+                  setError(userFacingError(err));
+                } finally {
+                  setJoinPending(false);
+                }
               }}
             >
               <div className="join-field">
@@ -92,18 +140,20 @@ export function Home() {
                   className="icon-button join-button"
                   aria-label="Entrar com código"
                   title="Entrar com código"
+                  disabled={joinPending}
+                  aria-busy={joinPending}
                 >
                   <ArrowUpRight size={22} />
                 </button>
               </div>
-              {error && (
-                <p id="code-error" role="alert" className="error-message">
-                  {error}
-                </p>
-              )}
             </form>
           </section>
         </div>
+        {error && (
+          <p id="code-error" role="alert" className="error-message">
+            {error}
+          </p>
+        )}
         <footer className="home-foot">
           <span className="demo-tag">ambiente demonstrativo</span>
           <span>ATÉ 2 PESSOAS / SÓ ÁUDIO</span>

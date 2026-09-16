@@ -3,7 +3,9 @@ import {
   mockAuthenticated,
   mockLogin,
   mockRegister,
+  mockCallApi,
   defaultUser,
+  type MockCall,
 } from "./helpers";
 
 const routes = [
@@ -24,6 +26,7 @@ test.beforeEach(async ({ page }) => {
     });
   });
   await mockAuthenticated(page);
+  await mockCallApi(page);
 });
 
 for (const route of routes) {
@@ -106,13 +109,13 @@ test("registration validation, create call, preferences, chat and end", async ({
   await expect(page.getByRole("heading", { level: 1 })).toContainText(
     "ALEX SILVA.",
   );
-  await page.getByRole("link", { name: "Criar chamada" }).click();
-  await expect(page).toHaveURL(/\/call\/demo-room\/setup$/);
+  await page.getByRole("button", { name: "Criar chamada" }).click();
+  await expect(page).toHaveURL(/\/call\/sala-001\/setup$/);
   await page.getByLabel("quero ouvir").selectOption("ES-ES");
   await page
     .getByRole("button", { name: "Desativar microfone", exact: true })
     .click();
-  await page.getByRole("link", { name: "Entrar na chamada" }).click();
+  await page.getByRole("button", { name: "Entrar na chamada" }).click();
   await page.getByRole("button", { name: "Pausar simulação" }).click();
   await expect(
     page.getByRole("button", { name: "Ativar microfone", exact: true }),
@@ -169,7 +172,7 @@ test("login, join validation and deep-link reload", async ({ page }) => {
   await expect(page).toHaveURL(/\/call\/equipe-42\/setup$/);
   await page.reload();
   await expect(page.getByRole("heading", { level: 1 })).toBeVisible();
-  await page.getByRole("link", { name: "Entrar na chamada" }).click();
+  await page.getByRole("button", { name: "Entrar na chamada" }).click();
   await expect(page).toHaveURL(/\/call\/equipe-42$/);
 });
 
@@ -298,4 +301,90 @@ test("translation follows the original and speakers alternate", async ({
     "Everything is going well.",
   );
   await expect(page.locator(".speaker .participant-name")).toHaveText("Mateus");
+});
+
+test("create uses the canonical code returned by the API", async ({ page }) => {
+  await page.goto("/home");
+  await page.getByRole("button", { name: "Criar chamada" }).click();
+  await expect(page).toHaveURL(/\/call\/sala-001\/setup$/);
+  await expect(page.locator(".room-code")).toHaveText("sala-001");
+});
+
+test("enter rejects a full room when the user is not a participant", async ({
+  page,
+}) => {
+  const fullCall: MockCall = {
+    id: 10,
+    code: "lotada",
+    host_user_id: 2,
+    status: "active",
+    participants: [
+      {
+        user_id: 2,
+        name: "Mateus",
+        spoken_language: "EN-US",
+        heard_language: "PT-BR",
+        joined_at: "2026-01-01T00:00:00Z",
+      },
+      {
+        user_id: 3,
+        name: "Carla",
+        spoken_language: "ES-ES",
+        heard_language: "EN-US",
+        joined_at: "2026-01-01T00:00:00Z",
+      },
+    ],
+    created_at: "2026-01-01T00:00:00Z",
+    updated_at: "2026-01-01T00:00:00Z",
+    ended_at: null,
+  };
+  await page.unroute("**/api/calls**");
+  await mockCallApi(page, { calls: [fullCall] });
+  await page.goto("/home");
+  await page.getByLabel("Código da chamada").fill("lotada");
+  await page.getByRole("button", { name: "Entrar com código" }).click();
+  await expect(page.getByRole("alert")).toHaveText(
+    "A chamada já está cheia.",
+  );
+  await expect(page).toHaveURL(/\/home$/);
+});
+
+test("call renders both API users and marks the authenticated user", async ({
+  page,
+}) => {
+  await page.goto("/call/demo-room");
+  const participants = page.getByLabel("Participantes");
+  await expect(participants.getByText("Ana Souza (você)")).toBeVisible();
+  await expect(participants.getByText("Mateus")).toBeVisible();
+  await expect(participants.getByText("02 / 02")).toBeVisible();
+});
+
+test("direct call access requires joining first", async ({ page }) => {
+  const waitingCall: MockCall = {
+    id: 11,
+    code: "convite",
+    host_user_id: 2,
+    status: "waiting",
+    participants: [
+      {
+        user_id: 2,
+        name: "Mateus",
+        spoken_language: "EN-US",
+        heard_language: "PT-BR",
+        joined_at: "2026-01-01T00:00:00Z",
+      },
+    ],
+    created_at: "2026-01-01T00:00:00Z",
+    updated_at: "2026-01-01T00:00:00Z",
+    ended_at: null,
+  };
+  await page.unroute("**/api/calls**");
+  await mockCallApi(page, { calls: [waitingCall] });
+
+  await page.goto("/call/convite");
+
+  await expect(page).toHaveURL(/\/call\/convite\/setup$/);
+  await expect(
+    page.getByRole("button", { name: "Entrar na chamada" }),
+  ).toBeVisible();
 });

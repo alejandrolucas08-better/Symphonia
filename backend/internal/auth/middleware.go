@@ -11,6 +11,11 @@ type contextKey string
 
 const contextKeyUserID contextKey = "user_id"
 
+func UserIDFromContext(ctx context.Context) (int64, bool) {
+	userID, ok := ctx.Value(contextKeyUserID).(int64)
+	return userID, ok && userID > 0
+}
+
 func Middleware(next http.HandlerFunc) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		auth := r.Header.Get("Authorization")
@@ -41,7 +46,7 @@ func CORS(next http.Handler) http.Handler {
 		w.Header().Set("Access-Control-Allow-Origin", r.Header.Get("Origin"))
 		w.Header().Set("Access-Control-Allow-Credentials", "true")
 		w.Header().Set("Access-Control-Allow-Headers", "Content-Type, Authorization")
-		w.Header().Set("Access-Control-Allow-Methods", "GET, POST, OPTIONS")
+		w.Header().Set("Access-Control-Allow-Methods", "GET, POST, PATCH, OPTIONS")
 		w.Header().Set("Access-Control-Expose-Headers", "Authorization")
 
 		if r.Method == http.MethodOptions {

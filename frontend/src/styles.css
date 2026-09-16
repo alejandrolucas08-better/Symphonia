@@ -242,21 +242,27 @@ main:focus {
   justify-content: space-between;
   gap: 24px;
   min-height: 60px;
-  padding: 12px 0;
-  border-bottom: 1px solid var(--text);
+  padding: 10px 12px 10px 20px;
+  border: 1px solid var(--primary);
+  border-radius: 6px;
+  background: var(--primary);
+  color: white;
   font-size: 15px;
-  font-weight: 500;
+  font-weight: 600;
   text-align: left;
+  box-shadow: 0 3px 0 var(--primary-dark);
   transition:
-    color 180ms,
-    border-color 180ms;
+    background 180ms,
+    border-color 180ms,
+    box-shadow 180ms,
+    transform 180ms;
 }
 .action-arrow {
   width: 38px;
   height: 38px;
   display: grid;
   place-items: center;
-  background: var(--primary);
+  background: rgb(255 255 255 / 14%);
   color: white;
   border-radius: 50%;
   flex-shrink: 0;
@@ -264,13 +270,20 @@ main:focus {
     transform 200ms,
     background 200ms;
 }
-.action-link:hover {
-  color: var(--primary);
-  border-color: var(--primary);
-}
-.action-link:hover .action-arrow {
-  transform: translate(3px, -3px);
+.action-link:hover:not(:disabled) {
   background: var(--primary-dark);
+  border-color: var(--primary-dark);
+  color: white;
+  box-shadow: 0 4px 0 #172f3b;
+  transform: translateY(-1px);
+}
+.action-link:hover:not(:disabled) .action-arrow {
+  transform: translate(3px, -3px);
+  background: rgb(255 255 255 / 20%);
+}
+.action-link:active:not(:disabled) {
+  box-shadow: 0 1px 0 #172f3b;
+  transform: translateY(2px);
 }
 .button {
   min-height: 44px;
@@ -641,13 +654,24 @@ main:focus {
   font-weight: 500;
 }
 .final-cta .action-link {
-  color: white;
-  border-color: #71909f;
+  color: var(--primary-dark);
+  background: white;
+  border-color: white;
+  box-shadow: 0 3px 0 #71909f;
   min-width: 300px;
 }
 .final-cta .action-arrow {
+  color: white;
+  background: var(--primary-dark);
+}
+.final-cta .action-link:hover {
   color: var(--primary-dark);
-  background: white;
+  background: #eaf0f3;
+  border-color: #eaf0f3;
+  box-shadow: 0 4px 0 #71909f;
+}
+.final-cta .action-link:hover .action-arrow {
+  background: var(--primary);
 }
 .landing-footer {
   display: grid;

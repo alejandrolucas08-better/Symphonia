@@ -9,12 +9,14 @@ export function Participant({
   muted = false,
   compact = false,
   animated = true,
+  currentUserId,
 }: {
   person: Person;
   active: boolean;
   muted?: boolean;
   compact?: boolean;
   animated?: boolean;
+  currentUserId?: number;
 }) {
   return (
     <div
@@ -24,7 +26,9 @@ export function Participant({
       <div className="participant-info">
         <span className="participant-name">
           {person.name}
-          {person.id === 1 && <span className="muted"> (você)</span>}
+          {person.id === currentUserId && (
+            <span className="muted"> (você)</span>
+          )}
         </span>
         <span className="participant-language">
           {compact ? person.languageCode : person.language}

@@ -21,6 +21,21 @@ export function ActionLink({
   );
 }
 
+export function ActionButton({
+  children,
+  className = "",
+  ...props
+}: ButtonHTMLAttributes<HTMLButtonElement>) {
+  return (
+    <button className={`action-link ${className}`} {...props}>
+      {children}
+      <span className="action-arrow">
+        <ArrowUpRight size={22} />
+      </span>
+    </button>
+  );
+}
+
 export function Button({
   children,
   className = "",

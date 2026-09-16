@@ -8,6 +8,7 @@ import (
 	"os"
 
 	"github.com/institucional/symphonia/backend/internal/auth"
+	"github.com/institucional/symphonia/backend/internal/call"
 	"github.com/institucional/symphonia/backend/internal/database"
 	"github.com/institucional/symphonia/backend/internal/user"
 )
@@ -30,10 +31,13 @@ func main() {
 		log.Fatalf("failed to connect to database: %v", err)
 	}
 	defer pool.Close()
+	if err := database.RunMigrations(ctx, pool); err != nil {
+		log.Fatalf("failed to run database migrations: %v", err)
+	}
 
 	userRepo := user.NewRepository(pool)
-	user.RunMigrations(pool)
 	authHandler := auth.NewHandler(userRepo)
+	callHandler := call.NewHandler(call.NewRepository(pool))
 
 	mux := http.NewServeMux()
 
@@ -41,6 +45,13 @@ func main() {
 	mux.HandleFunc("POST /api/register", authHandler.Register)
 	mux.HandleFunc("POST /api/login", authHandler.Login)
 	mux.HandleFunc("GET /api/session", auth.Chain(authHandler.Session, auth.Middleware))
+	mux.HandleFunc("POST /api/calls", auth.Chain(callHandler.Create, auth.Middleware))
+	mux.HandleFunc("GET /api/calls/{code}", auth.Chain(callHandler.Get, auth.Middleware))
+	mux.HandleFunc("GET /api/calls/{code}/status", auth.Chain(callHandler.Get, auth.Middleware))
+	mux.HandleFunc("POST /api/calls/{code}/join", auth.Chain(callHandler.Join, auth.Middleware))
+	mux.HandleFunc("PATCH /api/calls/{code}/language", auth.Chain(callHandler.UpdateLanguage, auth.Middleware))
+	mux.HandleFunc("POST /api/calls/{code}/leave", auth.Chain(callHandler.Leave, auth.Middleware))
+	mux.HandleFunc("POST /api/calls/{code}/end", auth.Chain(callHandler.End, auth.Middleware))
 
 	handler := auth.CORS(auth.LogRequest(mux))
 

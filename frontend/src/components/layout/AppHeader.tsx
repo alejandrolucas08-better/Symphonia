@@ -7,7 +7,13 @@ import { Brand } from "./Header";
 import { StatusBadge } from "../ui/StatusBadge";
 import { Avatar, initialsFor } from "../ui/Avatar";
 
-export function AppHeader({ call = false }: { call?: boolean }) {
+export function AppHeader({
+  call = false,
+  participantCount,
+}: {
+  call?: boolean;
+  participantCount?: number;
+}) {
   const { user, logout } = useAuth();
   const { reset } = useDemo();
   const navigate = useNavigate();
@@ -29,7 +35,12 @@ export function AppHeader({ call = false }: { call?: boolean }) {
         <Brand to="/home" />
         {call && (
           <span className="room-heading">
-            Daily meeting <span className="muted">/ 02</span>
+            Daily meeting{" "}
+            {participantCount !== undefined && (
+              <span className="muted">
+                / {String(participantCount).padStart(2, "0")}
+              </span>
+            )}
           </span>
         )}
         <div className="header-account">

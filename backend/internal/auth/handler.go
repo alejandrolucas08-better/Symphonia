@@ -129,8 +129,8 @@ func (h *Handler) Login(w http.ResponseWriter, r *http.Request) {
 }
 
 func (h *Handler) Session(w http.ResponseWriter, r *http.Request) {
-	uid, ok := r.Context().Value(contextKeyUserID).(int64)
-	if !ok || uid == 0 {
+	uid, ok := UserIDFromContext(r.Context())
+	if !ok {
 		writeJSON(w, http.StatusUnauthorized, map[string]string{"error": "unauthorized"})
 		return
 	}
