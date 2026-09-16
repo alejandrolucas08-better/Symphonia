@@ -21,7 +21,10 @@ services:
     environment:
       APP_ENV: ${APP_ENV:-development}
       BACKEND_PORT: ${BACKEND_PORT:-8080}
+      HTTP_READ_TIMEOUT_SECONDS: ${HTTP_READ_TIMEOUT_SECONDS:-10}
+      HTTP_WRITE_TIMEOUT_SECONDS: ${HTTP_WRITE_TIMEOUT_SECONDS:-10}
       DATABASE_URL: postgres://${POSTGRES_USER:-symphonia}:${POSTGRES_PASSWORD:-symphonia}@postgres:5432/${POSTGRES_DB:-symphonia}?sslmode=disable
+      MIGRATIONS_PATH: ${MIGRATIONS_PATH:-migrations}
       GEMINI_API_KEY: ${GEMINI_API_KEY:-}
     ports:
       - "${BACKEND_PORT:-8080}:8080"

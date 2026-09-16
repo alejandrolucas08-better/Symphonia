@@ -1,45 +1,30 @@
 package main
 
 import (
-	"encoding/json"
 	"log"
-	"net/http"
-	"os"
+
+	"github.com/institucional/symphonia/backend/internal/config"
+	"github.com/institucional/symphonia/backend/internal/database"
+	"github.com/institucional/symphonia/backend/internal/server"
 )
 
-type healthResponse struct {
-	Status  string `json:"status"`
-	Service string `json:"service"`
-}
-
 func main() {
-	port := os.Getenv("BACKEND_PORT")
-	if port == "" {
-		port = "8080"
+	cfg := config.Load()
+
+	db, err := database.Open(cfg.DatabaseURL)
+	if err != nil {
+		log.Fatalf("database connection failed: %v", err)
+	}
+	defer db.Close()
+
+	if err := database.Migrate(db, cfg.MigrationsPath); err != nil {
+		log.Fatalf("database migration failed: %v", err)
 	}
 
-	mux := http.NewServeMux()
-	mux.HandleFunc("/healthz", healthHandler)
+	appServer := server.New(cfg, db)
 
-	server := &http.Server{
-		Addr:    ":" + port,
-		Handler: mux,
-	}
-
-	log.Printf("Symphonia backend listening on :%s", port)
-	if err := server.ListenAndServe(); err != nil && err != http.ErrServerClosed {
+	log.Printf("Symphonia backend listening on :%s", cfg.Port)
+	if err := appServer.ListenAndServe(); err != nil {
 		log.Fatalf("server failed: %v", err)
-	}
-}
-
-func healthHandler(w http.ResponseWriter, _ *http.Request) {
-	w.Header().Set("Content-Type", "application/json")
-	w.WriteHeader(http.StatusOK)
-
-	if err := json.NewEncoder(w).Encode(healthResponse{
-		Status:  "ok",
-		Service: "symphonia-backend",
-	}); err != nil {
-		log.Printf("failed to encode health response: %v", err)
 	}
 }
