@@ -10,6 +10,7 @@ import (
 	"github.com/institucional/symphonia/backend/internal/auth"
 	"github.com/institucional/symphonia/backend/internal/call"
 	"github.com/institucional/symphonia/backend/internal/database"
+	"github.com/institucional/symphonia/backend/internal/translation"
 	"github.com/institucional/symphonia/backend/internal/user"
 	ws "github.com/institucional/symphonia/backend/internal/websocket"
 )
@@ -42,6 +43,12 @@ func main() {
 	hub := ws.NewHub()
 	callHandler := call.NewHandler(callRepo, hub)
 	websocketHandler := ws.NewHandler(callRepo, hub)
+
+	translator, err := translation.New(translation.LoadConfig())
+	if err != nil {
+		log.Fatalf("failed to initialize translation service: %v", err)
+	}
+	log.Printf("translation provider: %s", translator.Name())
 
 	mux := http.NewServeMux()
 
