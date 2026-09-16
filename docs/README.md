@@ -7,3 +7,4 @@ Current scope:
 - Initial repository structure
 - Development setup notes
 - Future architecture decisions
+- [WebSocket protocol](websocket.md)

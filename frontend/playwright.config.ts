@@ -12,7 +12,20 @@ export default defineConfig({
     reuseExistingServer: !process.env.CI,
   },
   projects: [
-    { name: "desktop", use: { viewport: { width: 1440, height: 900 } } },
+    {
+      name: "desktop",
+      use: {
+        viewport: { width: 1440, height: 900 },
+        launchOptions: process.env.LIVE_E2E
+          ? {
+              args: [
+                "--use-fake-ui-for-media-stream",
+                "--use-fake-device-for-media-stream",
+              ],
+            }
+          : undefined,
+      },
+    },
     {
       name: "tablet",
       use: { viewport: { width: 768, height: 1024 }, hasTouch: true },

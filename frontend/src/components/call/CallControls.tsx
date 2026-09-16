@@ -16,8 +16,10 @@ import type { LanguageCode } from "../../types/demo";
 export function CallControls({
   onEnd,
   onLanguageChange,
+  onMuteChange,
 }: {
   onEnd: () => void;
+  onMuteChange?: (muted: boolean) => boolean | Promise<boolean>;
   onLanguageChange?: (patch: {
     spoken?: LanguageCode;
     heard?: LanguageCode;
@@ -30,7 +32,7 @@ export function CallControls({
       <div className="container controls-inner">
         <div className="translation-status">
           <StatusBadge>TRADUÇÃO ATIVA</StatusBadge>
-          <span className="muted">simulação</span>
+          <span className="muted">transcrição demo</span>
         </div>
         <div className="control-group">
           <div className="control-item">
@@ -43,7 +45,11 @@ export function CallControls({
                 settings.muted ? "Ativar microfone" : "Desativar microfone"
               }
               aria-pressed={settings.muted}
-              onClick={() => updateSettings({ muted: !settings.muted })}
+              onClick={async () => {
+                const muted = !settings.muted;
+                if ((await onMuteChange?.(muted)) === false) return;
+                updateSettings({ muted });
+              }}
             >
               {settings.muted ? <MicOff size={21} /> : <Mic size={21} />}
             </button>

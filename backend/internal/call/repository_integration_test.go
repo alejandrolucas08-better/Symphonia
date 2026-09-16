@@ -49,6 +49,15 @@ func TestRepositoryJoinCapacity(t *testing.T) {
 	if err != nil {
 		t.Fatalf("create sequential call: %v", err)
 	}
+	if _, err := repository.GetForActiveParticipant(ctx, sequential.Code, userIDs[0]); err != nil {
+		t.Fatalf("get active host: %v", err)
+	}
+	if _, err := repository.GetForActiveParticipant(ctx, sequential.Code, userIDs[1]); !errors.Is(err, ErrNotParticipant) {
+		t.Fatalf("inactive participant error = %v, want ErrNotParticipant", err)
+	}
+	if _, err := repository.GetForActiveParticipant(ctx, "missing-call", userIDs[0]); !errors.Is(err, ErrCallNotFound) {
+		t.Fatalf("missing call error = %v, want ErrCallNotFound", err)
+	}
 	joined, err := repository.Join(ctx, sequential.Code, userIDs[1], LanguagePortuguese, LanguageEnglish)
 	if err != nil {
 		t.Fatalf("second user join: %v", err)
@@ -58,6 +67,12 @@ func TestRepositoryJoinCapacity(t *testing.T) {
 	}
 	if _, err := repository.Join(ctx, sequential.Code, userIDs[2], LanguageSpanish, LanguageFrench); !errors.Is(err, ErrCallFull) {
 		t.Fatalf("third user join error = %v, want ErrCallFull", err)
+	}
+	if _, err := repository.End(ctx, sequential.Code, userIDs[0]); err != nil {
+		t.Fatalf("end sequential call: %v", err)
+	}
+	if _, err := repository.GetForActiveParticipant(ctx, sequential.Code, userIDs[0]); !errors.Is(err, ErrCallEnded) {
+		t.Fatalf("ended call error = %v, want ErrCallEnded", err)
 	}
 
 	concurrent, err := repository.Create(ctx, userIDs[0], LanguageEnglish, LanguagePortuguese)

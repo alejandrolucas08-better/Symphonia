@@ -21,7 +21,15 @@ type callRepository interface {
 }
 
 type Handler struct {
-	calls callRepository
+	calls    callRepository
+	notifier Notifier
+}
+
+type Notifier interface {
+	ParticipantJoined(code string, participant Participant)
+	LanguageChanged(code string, participant Participant)
+	ParticipantLeft(code string, userID int64)
+	CallEnded(code string, endedByUserID int64)
 }
 
 type languageRequest struct {
@@ -29,8 +37,12 @@ type languageRequest struct {
 	HeardLanguage  Language `json:"heard_language"`
 }
 
-func NewHandler(calls callRepository) *Handler {
-	return &Handler{calls: calls}
+func NewHandler(calls callRepository, notifiers ...Notifier) *Handler {
+	var notifier Notifier
+	if len(notifiers) > 0 {
+		notifier = notifiers[0]
+	}
+	return &Handler{calls: calls, notifier: notifier}
 }
 
 func (h *Handler) Create(w http.ResponseWriter, r *http.Request) {
@@ -55,6 +67,11 @@ func (h *Handler) Join(w http.ResponseWriter, r *http.Request) {
 	}
 	userID, _ := auth.UserIDFromContext(r.Context())
 	result, err := h.calls.Join(r.Context(), r.PathValue("code"), userID, request.SpokenLanguage, request.HeardLanguage)
+	if err == nil && h.notifier != nil {
+		if participant, ok := participantForUser(result, userID); ok {
+			h.notifier.ParticipantJoined(result.Code, participant)
+		}
+	}
 	h.respond(w, result, err, http.StatusOK)
 }
 
@@ -65,19 +82,42 @@ func (h *Handler) UpdateLanguage(w http.ResponseWriter, r *http.Request) {
 	}
 	userID, _ := auth.UserIDFromContext(r.Context())
 	result, err := h.calls.UpdateLanguage(r.Context(), r.PathValue("code"), userID, request.SpokenLanguage, request.HeardLanguage)
+	if err == nil && h.notifier != nil {
+		if participant, ok := participantForUser(result, userID); ok {
+			h.notifier.LanguageChanged(result.Code, participant)
+		}
+	}
 	h.respond(w, result, err, http.StatusOK)
 }
 
 func (h *Handler) Leave(w http.ResponseWriter, r *http.Request) {
 	userID, _ := auth.UserIDFromContext(r.Context())
 	result, err := h.calls.Leave(r.Context(), r.PathValue("code"), userID)
+	if err == nil && result != nil && h.notifier != nil {
+		h.notifier.ParticipantLeft(result.Code, userID)
+	}
 	h.respond(w, result, err, http.StatusOK)
 }
 
 func (h *Handler) End(w http.ResponseWriter, r *http.Request) {
 	userID, _ := auth.UserIDFromContext(r.Context())
 	result, err := h.calls.End(r.Context(), r.PathValue("code"), userID)
+	if err == nil && result != nil && h.notifier != nil {
+		h.notifier.CallEnded(result.Code, userID)
+	}
 	h.respond(w, result, err, http.StatusOK)
+}
+
+func participantForUser(result *Call, userID int64) (Participant, bool) {
+	if result == nil {
+		return Participant{}, false
+	}
+	for _, participant := range result.Participants {
+		if participant.UserID == userID {
+			return participant, true
+		}
+	}
+	return Participant{}, false
 }
 
 func decodeLanguages(w http.ResponseWriter, r *http.Request) (languageRequest, bool) {

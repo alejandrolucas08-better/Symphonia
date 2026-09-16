@@ -13,6 +13,8 @@ type Settings = {
   heard: LanguageCode;
   muted: boolean;
   volume: number;
+  microphoneDeviceId: string;
+  listenOnly: boolean;
 };
 type DemoState = {
   name: string;
@@ -26,6 +28,8 @@ const defaults: Settings = {
   heard: "EN-US",
   muted: false,
   volume: 80,
+  microphoneDeviceId: "",
+  listenOnly: false,
 };
 const DemoContext = createContext<DemoState | null>(null);
 

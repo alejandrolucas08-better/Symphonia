@@ -1071,6 +1071,20 @@ main:focus {
   max-width: 440px;
   width: 100%;
 }
+.device-refresh {
+  margin-top: 12px;
+}
+.audio-state {
+  margin-top: 10px;
+  color: var(--text-secondary);
+  font-size: 14px;
+}
+.microphone-error .error-message {
+  line-height: 1.5;
+}
+.microphone-error .subtle-link {
+  margin-top: 10px;
+}
 
 .call-page {
   min-height: 100svh;
@@ -1104,6 +1118,14 @@ main:focus {
   font-size: 16px;
   color: var(--text-secondary);
   font-variant-numeric: tabular-nums;
+}
+.call-audio-status {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+  min-height: 34px;
+  color: var(--text-secondary);
+  font-size: 14px;
 }
 .call-grid {
   display: grid;

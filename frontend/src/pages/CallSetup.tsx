@@ -1,5 +1,5 @@
-import { ArrowLeft, ArrowUpRight, Mic, MicOff } from "lucide-react";
-import { useEffect, useState } from "react";
+import { ArrowLeft, ArrowUpRight, Mic, MicOff, RefreshCw } from "lucide-react";
+import { useEffect, useRef, useState } from "react";
 import { Link, useNavigate, useParams } from "react-router-dom";
 import { AppHeader } from "../components/layout/AppHeader";
 import { AudioWave } from "../components/ui/AudioWave";
@@ -9,6 +9,7 @@ import { StatusBadge } from "../components/ui/StatusBadge";
 import { useDemo } from "../contexts/DemoContext";
 import { useAuth } from "../hooks/useAuth";
 import { api, userFacingError } from "../services/api";
+import { microphoneErrorMessage, requestMicrophone } from "../services/callAudio";
 import type { Call } from "../types/call";
 
 export function CallSetup() {
@@ -20,6 +21,67 @@ export function CallSetup() {
   const [loading, setLoading] = useState(true);
   const [pending, setPending] = useState(false);
   const [error, setError] = useState("");
+  const [microphones, setMicrophones] = useState<MediaDeviceInfo[]>([]);
+  const [microphoneStatus, setMicrophoneStatus] = useState<
+    "idle" | "requesting" | "ready" | "error"
+  >("idle");
+  const [microphoneError, setMicrophoneError] = useState("");
+  const setupStream = useRef<MediaStream | null>(null);
+
+  const stopSetupStream = () => {
+    setupStream.current?.getTracks().forEach((track) => track.stop());
+    setupStream.current = null;
+  };
+
+  const listMicrophones = async () => {
+    if (!navigator.mediaDevices?.enumerateDevices) {
+      setMicrophoneStatus("error");
+      setMicrophoneError("Este navegador não oferece acesso a dispositivos de áudio.");
+      return;
+    }
+    try {
+      const devices = (await navigator.mediaDevices.enumerateDevices()).filter(
+        (device) => device.kind === "audioinput",
+      );
+      setMicrophones(devices);
+      if (
+        devices.length > 0 &&
+        !devices.some((device) => device.deviceId === settings.microphoneDeviceId)
+      ) {
+        updateSettings({ microphoneDeviceId: devices[0].deviceId });
+      }
+      if (devices.length === 0) {
+        setMicrophoneStatus("error");
+        setMicrophoneError("Nenhum microfone foi encontrado. Conecte um dispositivo e atualize a lista.");
+      }
+    } catch (cause) {
+      setMicrophoneStatus("error");
+      setMicrophoneError(microphoneErrorMessage(cause));
+    }
+  };
+
+  useEffect(() => {
+    void listMicrophones();
+    return stopSetupStream;
+  }, []);
+
+  const requestPermissionAndRefresh = async () => {
+    if (microphoneStatus === "requesting") return;
+    stopSetupStream();
+    setMicrophoneStatus("requesting");
+    setMicrophoneError("");
+    try {
+      setupStream.current = await requestMicrophone("");
+      await listMicrophones();
+      setMicrophoneStatus("ready");
+      updateSettings({ listenOnly: false });
+    } catch (cause) {
+      setMicrophoneStatus("error");
+      setMicrophoneError(microphoneErrorMessage(cause));
+    } finally {
+      stopSetupStream();
+    }
+  };
 
   useEffect(() => {
     if (!token || !id) return;
@@ -58,7 +120,7 @@ export function CallSetup() {
     };
   }, [id, token, user?.id]);
 
-  const enterCall = async () => {
+  const enterCall = async (listenOnly = false) => {
     if (!token || !call || pending) return;
     if (call.status === "ended") {
       setError("Esta chamada já foi encerrada.");
@@ -74,6 +136,26 @@ export function CallSetup() {
     setPending(true);
     setError("");
     try {
+      if (!listenOnly) {
+        setMicrophoneStatus("requesting");
+        setMicrophoneError("");
+        try {
+          setupStream.current = await requestMicrophone(
+            settings.microphoneDeviceId,
+          );
+          setMicrophoneStatus("ready");
+          updateSettings({ listenOnly: false });
+        } catch (cause) {
+          setMicrophoneStatus("error");
+          setMicrophoneError(microphoneErrorMessage(cause));
+          setPending(false);
+          return;
+        } finally {
+          stopSetupStream();
+        }
+      } else {
+        updateSettings({ listenOnly: true, muted: true });
+      }
       const { data } = await api.joinCall(token, call.code, {
         spoken_language: settings.spoken,
         heard_language: settings.heard,
@@ -109,7 +191,7 @@ export function CallSetup() {
               <strong>sintonizar.</strong>
             </h1>
           </div>
-          <span className="demo-tag">simulação de áudio</span>
+          <span className="demo-tag">áudio do navegador</span>
         </div>
         {loading && <p role="status">Carregando chamada...</p>}
         {error && (
@@ -121,7 +203,7 @@ export function CallSetup() {
           <div className="setup-grid">
             <section
               className="microphone-preview"
-              aria-label="Prévia do microfone simulado"
+              aria-label="Configuração do microfone"
             >
               <Avatar initials={initialsFor(name)} />
               <p className="preview-name">{name}</p>
@@ -149,9 +231,53 @@ export function CallSetup() {
             >
               <div className="field">
                 <label htmlFor="microphone">microfone</label>
-                <select id="microphone" defaultValue="default">
-                  <option value="default">Microfone padrão (simulado)</option>
+                <select
+                  id="microphone"
+                  value={settings.microphoneDeviceId}
+                  onChange={(event) =>
+                    updateSettings({
+                      microphoneDeviceId: event.target.value,
+                      listenOnly: false,
+                    })
+                  }
+                  disabled={microphones.length === 0}
+                >
+                  {microphones.length === 0 && (
+                    <option value="">Nenhum microfone disponível</option>
+                  )}
+                  {microphones.map((device, index) => (
+                    <option key={device.deviceId || `microphone-${index}`} value={device.deviceId}>
+                      {device.label || `Microfone ${index + 1}`}
+                    </option>
+                  ))}
                 </select>
+                <button
+                  className="subtle-link device-refresh"
+                  type="button"
+                  disabled={microphoneStatus === "requesting"}
+                  onClick={() => void requestPermissionAndRefresh()}
+                >
+                  <RefreshCw size={15} />
+                  {microphoneStatus === "requesting"
+                    ? "Solicitando acesso..."
+                    : "Permitir e atualizar microfones"}
+                </button>
+                {microphoneStatus === "ready" && (
+                  <p className="audio-state" role="status">Microfone disponível.</p>
+                )}
+                {microphoneError && (
+                  <div className="microphone-error">
+                    <p className="error-message" role="alert">{microphoneError}</p>
+                    <button
+                      className="subtle-link"
+                      type="button"
+                      disabled={pending}
+                      onClick={() => void enterCall(true)}
+                    >
+                      Entrar somente para ouvir
+                    </button>
+                  </div>
+                )}
               </div>
               <LanguageSelect
                 label="eu falo"
@@ -168,7 +294,7 @@ export function CallSetup() {
                 type="button"
                 disabled={pending}
                 aria-busy={pending}
-                onClick={enterCall}
+                onClick={() => void enterCall(settings.listenOnly)}
               >
                 {pending ? "Entrando..." : "Entrar na chamada"}{" "}
                 <span className="action-arrow">

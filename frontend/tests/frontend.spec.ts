@@ -4,9 +4,13 @@ import {
   mockLogin,
   mockRegister,
   mockCallApi,
+  getCallSocketMock,
   defaultUser,
   type MockCall,
+  type MockCallSocket,
+  installMediaMocks,
 } from "./helpers";
+import { CALL_EVENT } from "../src/types/realtime";
 
 const routes = [
   "/",
@@ -17,16 +21,13 @@ const routes = [
   "/call/demo-room",
 ];
 
+let callSocketMock: MockCallSocket;
+
 test.beforeEach(async ({ page }) => {
-  await page.addInitScript(() => {
-    Object.defineProperty(navigator.mediaDevices, "getUserMedia", {
-      value: () => {
-        throw new Error("Device access is forbidden in the demo");
-      },
-    });
-  });
+  await installMediaMocks(page);
   await mockAuthenticated(page);
   await mockCallApi(page);
+  callSocketMock = getCallSocketMock(page);
 });
 
 for (const route of routes) {
@@ -43,6 +44,7 @@ for (const route of routes) {
     page.on("request", (request) => {
       if (
         !request.url().startsWith("http://127.0.0.1:5173") &&
+        !request.url().startsWith("ws://127.0.0.1:5173") &&
         !request.url().startsWith("data:")
       )
         external.push(request.url());
@@ -359,6 +361,45 @@ test("call renders both API users and marks the authenticated user", async ({
   await expect(participants.getByText("02 / 02")).toBeVisible();
 });
 
+test("call socket ignores malformed events and reconnects after an abnormal close", async ({
+  page,
+}) => {
+  await page.goto("/call/demo-room");
+  await expect(page.getByText("conectado").first()).toBeVisible();
+  expect(callSocketMock.protocols()).toEqual([
+    "symphonia.v1",
+    "auth.test-token",
+  ]);
+
+  callSocketMock.sendRaw("not-json");
+  callSocketMock.sendRaw(
+    JSON.stringify({ version: 1, type: CALL_EVENT.MESSAGE, data: {} }),
+  );
+  callSocketMock.send(CALL_EVENT.MESSAGE, {
+    id: "server-1",
+    user_id: 2,
+    name: "Mateus",
+    language: "EN-US",
+    text: "Mensagem do servidor",
+    sent_at: "2026-01-01T00:00:00Z",
+  });
+  await expect(page.getByRole("log")).toContainText("Mensagem do servidor");
+  await expect(page.getByRole("log")).toContainText("Mateus");
+  await expect(page.getByRole("log")).toContainText("EN-US");
+  callSocketMock.send(CALL_EVENT.MUTE_STATE, {
+    user_id: 2,
+    muted: true,
+  });
+  await expect(
+    page.locator(".participant-row").filter({ hasText: "Mateus" }).locator(".lucide-mic-off"),
+  ).toBeVisible();
+
+  await callSocketMock.closeAbnormally();
+  await expect(page.getByText("reconectando").first()).toBeVisible();
+  await expect.poll(() => callSocketMock.connectionCount()).toBe(2);
+  await expect(page.getByText("conectado").first()).toBeVisible();
+});
+
 test("direct call access requires joining first", async ({ page }) => {
   const waitingCall: MockCall = {
     id: 11,
@@ -387,4 +428,102 @@ test("direct call access requires joining first", async ({ page }) => {
   await expect(
     page.getByRole("button", { name: "Entrar na chamada" }),
   ).toBeVisible();
+});
+
+test("audio codec writes and validates the fixed binary frame", async ({ page }) => {
+  await page.goto("/");
+  const result = await page.evaluate(async () => {
+    const moduleUrl = "/src/services/audioFrame.ts";
+    const codec = await import(/* @vite-ignore */ moduleUrl);
+    const samples = new Int16Array(codec.AUDIO_SAMPLE_COUNT);
+    samples[0] = -32768;
+    samples[319] = 32767;
+    const encoded = codec.encodeAudioFrame({
+      discontinuity: true,
+      streamId: 0x01020304,
+      sequence: 7,
+      timestamp: 320,
+      samples,
+    });
+    const parsed = codec.parseAudioFrame(encoded);
+    new Uint8Array(encoded)[0] = 0;
+    return {
+      bytes: encoded.byteLength,
+      streamId: parsed?.streamId,
+      discontinuity: parsed?.discontinuity,
+      first: parsed?.samples[0],
+      last: parsed?.samples[319],
+      rejectsBadMagic: codec.parseAudioFrame(encoded) === null,
+    };
+  });
+  expect(result).toEqual({
+    bytes: 664,
+    streamId: 0x01020304,
+    discontinuity: true,
+    first: -32768,
+    last: 32767,
+    rejectsBadMagic: true,
+  });
+});
+
+test("permission denial offers clear guidance and listen-only confirmation", async ({ page }) => {
+  await installMediaMocks(page, "NotAllowedError");
+  await page.goto("/call/equipe-42/setup");
+  await page.getByRole("button", { name: "Entrar na chamada" }).click();
+  await expect(page.getByRole("alert")).toContainText(
+    "Permissão do microfone negada",
+  );
+  await page.getByRole("button", { name: "Entrar somente para ouvir" }).click();
+  await expect(page).toHaveURL(/\/call\/equipe-42$/);
+  await expect(page.getByText("Áudio de escuta ativo.")).toBeVisible();
+});
+
+test("setup permission refresh stops its temporary microphone track", async ({ page }) => {
+  await page.goto("/call/equipe-42/setup");
+  await page
+    .getByRole("button", { name: "Permitir e atualizar microfones" })
+    .click();
+  await expect(page.getByText("Microfone disponível.")).toBeVisible();
+  expect(
+    await page.evaluate(() =>
+      ((window as Window & {
+        __testAudioTracks?: Array<{ readyState: string }>;
+      }).__testAudioTracks ?? []).every((track) => track.readyState === "ended"),
+    ),
+  ).toBe(true);
+});
+
+test("mute suppresses binary audio immediately and leaving stops tracks", async ({ page }) => {
+  await page.goto("/call/demo-room?audioDiagnostics=1");
+  await expect(page.getByText("Áudio ativo.")).toBeVisible();
+  await page.evaluate(() =>
+    (window as Window & { __emitAudioSamples?: () => void }).__emitAudioSamples?.(),
+  );
+  await expect.poll(() => callSocketMock.binaryFrames()).toBe(1);
+
+  await page.getByRole("button", { name: "Desativar microfone", exact: true }).click();
+  expect(
+    await page.evaluate(() => {
+      const tracks = (window as Window & { __testAudioTracks?: Array<{ enabled: boolean; readyState: string }> })
+        .__testAudioTracks ?? [];
+      return tracks.at(-1)?.enabled;
+    }),
+  ).toBe(false);
+  await page.evaluate(() =>
+    (window as Window & { __emitAudioSamples?: () => void }).__emitAudioSamples?.(),
+  );
+  expect(callSocketMock.binaryFrames()).toBe(1);
+
+  await page.getByRole("button", { name: "Ativar microfone", exact: true }).click();
+  await page.evaluate(() =>
+    (window as Window & { __emitAudioSamples?: () => void }).__emitAudioSamples?.(),
+  );
+  await expect.poll(() => callSocketMock.binaryFrames()).toBe(2);
+  await page.goto("/home");
+  expect(
+    await page.evaluate(() =>
+      ((window as Window & { __testAudioTracks?: Array<{ readyState: string }> }).__testAudioTracks ?? [])
+        .every((track) => track.readyState === "ended"),
+    ),
+  ).toBe(true);
 });

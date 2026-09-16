@@ -11,6 +11,7 @@ import (
 	"github.com/institucional/symphonia/backend/internal/call"
 	"github.com/institucional/symphonia/backend/internal/database"
 	"github.com/institucional/symphonia/backend/internal/user"
+	ws "github.com/institucional/symphonia/backend/internal/websocket"
 )
 
 type healthResponse struct {
@@ -37,7 +38,10 @@ func main() {
 
 	userRepo := user.NewRepository(pool)
 	authHandler := auth.NewHandler(userRepo)
-	callHandler := call.NewHandler(call.NewRepository(pool))
+	callRepo := call.NewRepository(pool)
+	hub := ws.NewHub()
+	callHandler := call.NewHandler(callRepo, hub)
+	websocketHandler := ws.NewHandler(callRepo, hub)
 
 	mux := http.NewServeMux()
 
@@ -52,6 +56,7 @@ func main() {
 	mux.HandleFunc("PATCH /api/calls/{code}/language", auth.Chain(callHandler.UpdateLanguage, auth.Middleware))
 	mux.HandleFunc("POST /api/calls/{code}/leave", auth.Chain(callHandler.Leave, auth.Middleware))
 	mux.HandleFunc("POST /api/calls/{code}/end", auth.Chain(callHandler.End, auth.Middleware))
+	mux.Handle("GET /api/calls/{code}/ws", websocketHandler)
 
 	handler := auth.CORS(auth.LogRequest(mux))
 

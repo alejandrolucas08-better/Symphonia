@@ -18,6 +18,18 @@ type fakeRepository struct {
 	err          error
 }
 
+type recordingNotifier struct {
+	joined   int
+	language int
+	left     int
+	ended    int
+}
+
+func (n *recordingNotifier) ParticipantJoined(string, Participant) { n.joined++ }
+func (n *recordingNotifier) LanguageChanged(string, Participant)   { n.language++ }
+func (n *recordingNotifier) ParticipantLeft(string, int64)         { n.left++ }
+func (n *recordingNotifier) CallEnded(string, int64)               { n.ended++ }
+
 func (f *fakeRepository) Create(_ context.Context, userID int64, _, _ Language) (*Call, error) {
 	f.createUserID = userID
 	return f.result, f.err
@@ -120,6 +132,40 @@ func TestHandlerErrorStatuses(t *testing.T) {
 			}
 			assertError(t, response, test.message)
 		})
+	}
+}
+
+func TestSuccessfulMutationsPublishNotifications(t *testing.T) {
+	result := &Call{Code: "abcd1234", Participants: []Participant{{UserID: 42, Name: "Ada"}}}
+	notifier := &recordingNotifier{}
+	handler := NewHandler(&fakeRepository{result: result}, notifier)
+	token, err := auth.GenerateToken(42)
+	if err != nil {
+		t.Fatalf("GenerateToken: %v", err)
+	}
+	languages := `{"spoken_language":"EN-US","heard_language":"PT-BR"}`
+	tests := []struct {
+		name string
+		body string
+		call func(http.ResponseWriter, *http.Request)
+	}{
+		{"join", languages, handler.Join},
+		{"language", languages, handler.UpdateLanguage},
+		{"leave", "", handler.Leave},
+		{"end", "", handler.End},
+	}
+	for _, test := range tests {
+		request := httptest.NewRequest(http.MethodPost, "/api/calls/abcd1234", strings.NewReader(test.body))
+		request.SetPathValue("code", "abcd1234")
+		request.Header.Set("Authorization", "Bearer "+token)
+		response := httptest.NewRecorder()
+		auth.Middleware(test.call)(response, request)
+		if response.Code != http.StatusOK {
+			t.Fatalf("%s status = %d: %s", test.name, response.Code, response.Body.String())
+		}
+	}
+	if notifier.joined != 1 || notifier.language != 1 || notifier.left != 1 || notifier.ended != 1 {
+		t.Fatalf("notification counts = %+v", notifier)
 	}
 }
 

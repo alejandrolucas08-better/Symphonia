@@ -6,13 +6,16 @@ import { useDemo } from "../../contexts/DemoContext";
 import { Brand } from "./Header";
 import { StatusBadge } from "../ui/StatusBadge";
 import { Avatar, initialsFor } from "../ui/Avatar";
+import type { CallSocketStatus } from "../../types/realtime";
 
 export function AppHeader({
   call = false,
   participantCount,
+  realtimeStatus = "stopped",
 }: {
   call?: boolean;
   participantCount?: number;
+  realtimeStatus?: CallSocketStatus;
 }) {
   const { user, logout } = useAuth();
   const { reset } = useDemo();
@@ -46,7 +49,12 @@ export function AppHeader({
         <div className="header-account">
           {call ? (
             <StatusBadge>
-              conectado <span className="demo-tag">demo</span>
+              {realtimeStatus === "joined"
+                ? "conectado"
+                : realtimeStatus === "connecting" ||
+                    realtimeStatus === "reconnecting"
+                  ? "reconectando"
+                  : "indisponível"}
             </StatusBadge>
           ) : (
             <>

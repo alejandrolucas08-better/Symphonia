@@ -92,6 +92,22 @@ func (r *Repository) GetByCode(ctx context.Context, code string) (*Call, error) 
 	return loadCall(ctx, r.db, code)
 }
 
+func (r *Repository) GetForActiveParticipant(ctx context.Context, code string, userID int64) (*Call, error) {
+	result, err := loadCall(ctx, r.db, code)
+	if err != nil {
+		return nil, err
+	}
+	if result.Status == StatusEnded {
+		return nil, ErrCallEnded
+	}
+	for _, participant := range result.Participants {
+		if participant.UserID == userID {
+			return result, nil
+		}
+	}
+	return nil, ErrNotParticipant
+}
+
 func (r *Repository) Join(ctx context.Context, code string, userID int64, spoken, heard Language) (*Call, error) {
 	return r.changeLocked(ctx, code, func(tx pgx.Tx, callID, _ int64, status Status) error {
 		if status == StatusEnded {

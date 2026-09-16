@@ -1,4 +1,5 @@
-import type { Page, Route } from "@playwright/test";
+import type { Page, Route, WebSocketRoute } from "@playwright/test";
+import { CALL_EVENT } from "../src/types/realtime";
 
 export type MockUser = {
   id: number;
@@ -15,6 +16,97 @@ export const defaultUser: MockUser = {
 };
 
 export const token = "test-token";
+
+export async function installMediaMocks(
+  page: Page,
+  errorName?: "NotAllowedError" | "NotFoundError" | "NotReadableError" | "OverconstrainedError",
+) {
+  await page.addInitScript((failure) => {
+    const tracks: Array<{
+      enabled: boolean;
+      readyState: "live" | "ended";
+      stop: () => void;
+    }> = [];
+    Object.defineProperty(window, "__testAudioTracks", {
+      configurable: true,
+      value: tracks,
+    });
+    Object.defineProperty(navigator, "mediaDevices", {
+      configurable: true,
+      value: {
+        enumerateDevices: async () => [
+          {
+            deviceId: "test-microphone",
+            groupId: "test-group",
+            kind: "audioinput",
+            label: "Microfone de teste",
+            toJSON: () => ({}),
+          },
+        ],
+        getUserMedia: async () => {
+          if (failure) throw new DOMException("test media failure", failure);
+          const track = {
+            enabled: true,
+            readyState: "live" as const,
+            stop() {
+              (this as { readyState: string }).readyState = "ended";
+            },
+          };
+          tracks.push(track);
+          return {
+            getTracks: () => [track],
+            getAudioTracks: () => [track],
+          };
+        },
+      },
+    });
+
+    class FakeAudioNode {
+      connect() {
+        return this;
+      }
+      disconnect() {}
+    }
+    class FakeGainNode extends FakeAudioNode {
+      gain = { value: 1, setValueAtTime(value: number) { this.value = value; } };
+    }
+    class FakeBufferSource extends FakeAudioNode {
+      buffer: unknown;
+      onended: (() => void) | null = null;
+      start() {}
+      stop() { this.onended?.(); }
+    }
+    class FakeAudioContext {
+      state: AudioContextState = "running";
+      currentTime = 1;
+      destination = new FakeAudioNode();
+      audioWorklet = { addModule: async () => undefined };
+      createMediaStreamSource() { return new FakeAudioNode(); }
+      createGain() { return new FakeGainNode(); }
+      createBufferSource() { return new FakeBufferSource(); }
+      createBuffer(_channels: number, length: number) {
+        const data = new Float32Array(length);
+        return { getChannelData: () => data };
+      }
+      async resume() { this.state = "running"; }
+      async close() { this.state = "closed"; }
+    }
+    class FakeAudioWorkletNode extends FakeAudioNode {
+      port = { onmessage: null as ((event: MessageEvent<Int16Array>) => void) | null };
+      constructor() {
+        super();
+        Object.defineProperty(window, "__emitAudioSamples", {
+          configurable: true,
+          value: () => this.port.onmessage?.(
+            { data: new Int16Array(320).fill(1200) } as MessageEvent<Int16Array>,
+          ),
+        });
+      }
+    }
+    Object.defineProperty(window, "AudioContext", { configurable: true, value: FakeAudioContext });
+    Object.defineProperty(window, "AudioWorkletNode", { configurable: true, value: FakeAudioWorkletNode });
+  }, errorName);
+}
 
 export type MockCallParticipant = {
   user_id: number;
@@ -131,6 +223,133 @@ function seededCall(code: string): MockCall {
   };
 }
 
+export type MockCallSocket = {
+  send: (type: string, data: unknown, requestId?: string) => void;
+  sendRaw: (message: string) => void;
+  closeAbnormally: () => Promise<void>;
+  connectionCount: () => number;
+  protocols: () => string[];
+  binaryFrames: () => number;
+  sendBinary: (payload: number[]) => void;
+};
+
+const socketMocks = new WeakMap<Page, MockCallSocket>();
+
+export function getCallSocketMock(page: Page): MockCallSocket {
+  const mock = socketMocks.get(page);
+  if (!mock) throw new Error("Call WebSocket mock has not been installed");
+  return mock;
+}
+
+async function mockCallSocket(
+  page: Page,
+  state: Map<string, MockCall>,
+  user: MockUser,
+) {
+  const sockets = new Set<WebSocketRoute>();
+  let connections = 0;
+  let messageId = 0;
+  let requestedProtocols: string[] = [];
+  let binaryFrameCount = 0;
+  const envelope = (type: string, data: unknown, requestId?: string) =>
+    JSON.stringify({
+      version: 1,
+      type,
+      ...(requestId ? { request_id: requestId } : {}),
+      data,
+      occurred_at: timestamp,
+    });
+
+  await page.routeWebSocket("**/api/calls/*/ws", (socket) => {
+    sockets.add(socket);
+    connections += 1;
+    requestedProtocols = socket.protocols();
+    const parts = new URL(socket.url()).pathname.split("/").filter(Boolean);
+    const call = state.get(decodeURIComponent(parts[2] ?? ""));
+
+    socket.onMessage((raw) => {
+      if (typeof raw !== "string") {
+        binaryFrameCount += 1;
+        socket.send(raw);
+        return;
+      }
+      if (!call) return;
+      const incoming = JSON.parse(raw) as {
+        type: string;
+        request_id: string;
+        data: { text?: string; muted?: boolean };
+      };
+      if (incoming.type === CALL_EVENT.JOIN_CALL) {
+        socket.send(
+          envelope(
+            CALL_EVENT.JOIN_CALL,
+            {
+              call,
+              mute_states: call.participants.map((participant) => ({
+                user_id: participant.user_id,
+                muted: false,
+              })),
+            },
+            incoming.request_id,
+          ),
+        );
+      } else if (
+        incoming.type === CALL_EVENT.MESSAGE &&
+        typeof incoming.data.text === "string"
+      ) {
+        const participant =
+          call.participants.find((item) => item.user_id === user.id) ??
+          call.participants[0];
+        messageId += 1;
+        socket.send(
+          envelope(CALL_EVENT.MESSAGE, {
+            id: messageId,
+            user_id: participant.user_id,
+            name: participant.name,
+            language: participant.spoken_language,
+            text: incoming.data.text,
+            sent_at: timestamp,
+          }),
+        );
+      } else if (
+        incoming.type === CALL_EVENT.MUTE_STATE &&
+        typeof incoming.data.muted === "boolean"
+      ) {
+        socket.send(
+          envelope(CALL_EVENT.MUTE_STATE, {
+            user_id: user.id,
+            muted: incoming.data.muted,
+          }),
+        );
+      }
+    });
+    socket.onClose(() => sockets.delete(socket));
+  });
+
+  socketMocks.set(page, {
+    send: (type, data, requestId) => {
+      const message = envelope(type, data, requestId);
+      sockets.forEach((socket) => socket.send(message));
+    },
+    sendRaw: (message) => sockets.forEach((socket) => socket.send(message)),
+    closeAbnormally: async () => {
+      await Promise.all(
+        [...sockets].map((socket) =>
+          socket.close({ code: 1011, reason: "test reconnect" }),
+        ),
+      );
+      sockets.clear();
+    },
+    connectionCount: () => connections,
+    protocols: () => requestedProtocols,
+    binaryFrames: () => binaryFrameCount,
+    sendBinary: (payload) => {
+      const message = Buffer.from(payload);
+      sockets.forEach((socket) => socket.send(message));
+    },
+  });
+}
+
 export async function mockCallApi(
   page: Page,
   {
@@ -143,6 +362,8 @@ export async function mockCallApi(
   );
   let nextId = Math.max(0, ...calls.map((call) => call.id)) + 1;
   let nextCode = 1;
+
+  await mockCallSocket(page, state, user);
 
   await page.route("**/api/calls**", async (route) => {
     const request = route.request();

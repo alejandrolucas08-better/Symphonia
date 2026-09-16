@@ -4,7 +4,7 @@ Symphonia is a web application for real-time communication between two people wh
 
 The MVP goal is an audio call for up to two participants, with live speech transcription and translation.
 
-The frontend now contains a complete visual prototype with mock data: a landing page, login, registration, home, call setup, and an audio-only call room. All interactions run in memory. Real authentication, calls, signaling, audio capture, and Gemini Live Translate are not implemented.
+The project includes backend authentication and calls plus an authenticated WebSocket for transient call events and best-effort PCM audio relay between two participants. Browser capture and playback support is in active development; Gemini Live Translate is not integrated.
 
 ## Stack
 

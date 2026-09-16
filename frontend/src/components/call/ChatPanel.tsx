@@ -1,28 +1,40 @@
 import { useEffect, useRef, useState } from "react";
 import { Send } from "lucide-react";
-import { messages } from "../../data/mocks";
-import { useDemo } from "../../contexts/DemoContext";
-import type { Message } from "../../types/demo";
+import type {
+  CallSocketStatus,
+  RealtimeMessage,
+} from "../../types/realtime";
 
-export function ChatPanel() {
-  const { name } = useDemo();
-  const [chat, setChat] = useState<Message[]>(() =>
-    messages.map((message) => ({
-      ...message,
-      sender: message.id === 1 ? name : message.sender,
-    })),
-  );
+function statusLabel(status: CallSocketStatus) {
+  if (status === "joined") return "conectado";
+  if (status === "connecting" || status === "reconnecting")
+    return "reconectando";
+  return "indisponível";
+}
+
+export function ChatPanel({
+  messages,
+  currentUserId,
+  connectionStatus,
+  onSend,
+}: {
+  messages: RealtimeMessage[];
+  currentUserId?: number;
+  connectionStatus: CallSocketStatus;
+  onSend: (text: string) => boolean;
+}) {
   const [text, setText] = useState("");
   const list = useRef<HTMLDivElement>(null);
-  const nextId = useRef(3);
+
   useEffect(() => {
     if (list.current) list.current.scrollTop = list.current.scrollHeight;
-  }, [chat]);
+  }, [messages]);
+
   return (
     <section className="chat-panel" aria-label="Chat">
       <div className="panel-heading">
         <h2>CHAT</h2>
-        <span className="demo-tag">local</span>
+        <span className="demo-tag">{statusLabel(connectionStatus)}</span>
       </div>
       <div
         className="chat-messages"
@@ -31,11 +43,14 @@ export function ChatPanel() {
         aria-label="Mensagens"
         aria-live="polite"
       >
-        {chat.map((message) => (
+        {messages.map((message) => (
           <div className="chat-message" key={message.id}>
             <p>
-              {message.sender}
-              <span>{message.sender === name ? "você" : "EN-US"}</span>
+              {message.name}
+              <span>
+                {message.user_id === currentUserId ? "você · " : ""}
+                {message.language}
+              </span>
             </p>
             <div>{message.text}</div>
           </div>
@@ -46,12 +61,7 @@ export function ChatPanel() {
         onSubmit={(event) => {
           event.preventDefault();
           const clean = text.trim();
-          if (!clean) return;
-          setChat((current) => [
-            ...current,
-            { id: nextId.current++, sender: name, text: clean },
-          ]);
-          setText("");
+          if (clean && onSend(clean)) setText("");
         }}
       >
         <label htmlFor="chat-message" className="sr-only">
@@ -69,7 +79,7 @@ export function ChatPanel() {
           className="icon-button"
           aria-label="Enviar mensagem"
           title="Enviar mensagem"
-          disabled={!text.trim()}
+          disabled={!text.trim() || connectionStatus !== "joined"}
         >
           <Send size={18} />
         </button>

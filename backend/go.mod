@@ -3,6 +3,7 @@ module github.com/institucional/symphonia/backend
 go 1.23.0
 
 require (
+	github.com/coder/websocket v1.8.14
 	github.com/jackc/pgx/v5 v5.7.4
 	golang.org/x/crypto v0.37.0
 )

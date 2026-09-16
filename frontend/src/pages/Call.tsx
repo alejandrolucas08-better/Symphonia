@@ -12,14 +12,21 @@ import { initialsFor } from "../components/ui/Avatar";
 import { useDemo } from "../contexts/DemoContext";
 import { useConversation } from "../hooks/useConversation";
 import { useAuth } from "../hooks/useAuth";
+import { useCallSocket } from "../hooks/useCallSocket";
+import { useCallAudio } from "../hooks/useCallAudio";
 import { languages, phrases } from "../data/mocks";
 import { api, userFacingError } from "../services/api";
 import type { Call as CallData } from "../types/call";
 import type { LanguageCode, Person } from "../types/demo";
+import {
+  CALL_EVENT,
+  type RealtimeMessage,
+  type ServerCallEnvelope,
+} from "../types/realtime";
 
 export function Call() {
   const { id } = useParams();
-  const { settings } = useDemo();
+  const { settings, updateSettings } = useDemo();
   const { token, user } = useAuth();
   const { turn, key, ready, animated, paused, setPaused, next } =
     useConversation();
@@ -28,7 +35,10 @@ export function Call() {
   const [requestError, setRequestError] = useState("");
   const [endPending, setEndPending] = useState(false);
   const [seconds, setSeconds] = useState(0);
+  const [messages, setMessages] = useState<RealtimeMessage[]>([]);
+  const [muteStates, setMuteStates] = useState<Map<number, boolean>>(new Map());
   const dialog = useRef<HTMLDialogElement>(null);
+  const refreshCall = useRef<() => void>(() => undefined);
   const navigate = useNavigate();
 
   useEffect(() => {
@@ -47,6 +57,10 @@ export function Call() {
       try {
         const { data } = await api.getCall(token, id);
         if (!active) return;
+        if (data.status === "ended") {
+          navigate("/home", { replace: true });
+          return;
+        }
         if (
           !data.participants.some(
             (participant) => participant.user_id === user?.id,
@@ -65,6 +79,7 @@ export function Call() {
         if (active && initial) setLoading(false);
       }
     };
+    refreshCall.current = () => void refresh();
     void refresh(true);
     const interval = window.setInterval(() => void refresh(), 3000);
     return () => {
@@ -72,6 +87,83 @@ export function Call() {
       window.clearInterval(interval);
     };
   }, [id, navigate, token, user?.id]);
+
+  useEffect(() => {
+    setMessages([]);
+    setMuteStates(new Map());
+  }, [id]);
+
+  const handleSocketEvent = (event: ServerCallEnvelope) => {
+    switch (event.type) {
+      case CALL_EVENT.JOIN_CALL: {
+        if (event.data.call.status === "ended") {
+          navigate("/home", { replace: true });
+          return;
+        }
+        setCall(event.data.call);
+        setMuteStates(
+          new Map(
+            event.data.mute_states.map(({ user_id, muted }) => [
+              user_id,
+              muted,
+            ]),
+          ),
+        );
+        socket.setMuted(settings.muted);
+        break;
+      }
+      case CALL_EVENT.PARTICIPANT_JOINED:
+      case CALL_EVENT.PARTICIPANT_LEFT:
+      case CALL_EVENT.LANGUAGE_CHANGED:
+        refreshCall.current();
+        break;
+      case CALL_EVENT.MESSAGE:
+        setMessages((current) =>
+          current.some((message) => message.id === event.data.id)
+            ? current
+            : [...current, event.data],
+        );
+        break;
+      case CALL_EVENT.MUTE_STATE:
+        setMuteStates((current) => {
+          const next = new Map(current);
+          next.set(event.data.user_id, event.data.muted);
+          return next;
+        });
+        if (event.data.user_id === user?.id)
+          updateSettings({ muted: event.data.muted });
+        break;
+      case CALL_EVENT.CALL_ENDED:
+        navigate("/home", { replace: true });
+        break;
+      case CALL_EVENT.ERROR:
+        setRequestError(event.data.message);
+        break;
+    }
+  };
+
+  const socket = useCallSocket({
+    code: call?.code,
+    token,
+    enabled:
+      call?.status !== "ended" &&
+      Boolean(call?.participants.some((item) => item.user_id === user?.id)),
+    onEvent: handleSocketEvent,
+  });
+  const audio = useCallAudio({
+    enabled:
+      call?.status !== "ended" &&
+      Boolean(call?.participants.some((item) => item.user_id === user?.id)),
+    callCode: call?.code,
+    token,
+    listenOnly: settings.listenOnly,
+    deviceId: settings.microphoneDeviceId,
+    muted: settings.muted,
+    volume: settings.volume,
+    socketStatus: socket.status,
+    sendBinary: socket.sendBinary,
+    subscribeBinary: socket.subscribeBinary,
+  });
 
   const updateLanguages = async (patch: {
     spoken?: LanguageCode;
@@ -100,6 +192,8 @@ export function Call() {
       } else {
         await api.leaveCall(token, call.code);
       }
+      audio.stop();
+      socket.stop();
       dialog.current?.close();
       navigate("/home");
     } catch (err) {
@@ -146,12 +240,19 @@ export function Call() {
   const speaker = featured[turn % featured.length];
   const source = speaker?.languageCode ?? settings.spoken;
   const target = currentParticipant?.heard_language ?? settings.heard;
-  const silent = speaker?.id === user?.id && settings.muted;
+  const silent = speaker
+    ? (muteStates.get(speaker.id) ??
+      (speaker.id === user?.id ? settings.muted : false))
+    : false;
   const isHost = call.host_user_id === user?.id;
 
   return (
     <div className={`call-page ${paused ? "motion-paused" : ""}`}>
-      <AppHeader call participantCount={people.length} />
+      <AppHeader
+        call
+        participantCount={people.length}
+        realtimeStatus={socket.status}
+      />
       <main id="main-content" className="container call-main">
         <div className="call-topline">
           <h1>
@@ -177,6 +278,29 @@ export function Call() {
             {requestError}
           </p>
         )}
+        <div className="call-audio-status" aria-live="polite">
+          <span>
+            {audio.state === "requesting" && "Solicitando microfone..."}
+            {audio.state === "denied" && "Microfone sem permissão."}
+            {audio.state === "unavailable" && "Microfone indisponível."}
+            {audio.state === "active" &&
+              (settings.listenOnly ? "Áudio de escuta ativo." : "Áudio ativo.")}
+            {audio.state === "suspended" && "Áudio aguardando ativação."}
+          </span>
+          {audio.state === "suspended" && (
+            <button className="subtle-link" type="button" onClick={() => void audio.activate()}>
+              Ativar áudio
+            </button>
+          )}
+          {(audio.state === "denied" || audio.state === "unavailable") && (
+            <button className="subtle-link" type="button" onClick={() => void audio.retry()}>
+              Tentar microfone novamente
+            </button>
+          )}
+        </div>
+        {audio.error && (audio.state === "denied" || audio.state === "unavailable") && (
+          <p className="error-message" role="alert">{audio.error}</p>
+        )}
         {call.status === "ended" && (
           <p role="status" className="error-message">
             Esta chamada já foi encerrada.
@@ -191,7 +315,7 @@ export function Call() {
               >
                 <div className="stage-label">
                   <StatusBadge>TRADUÇÃO ATIVA</StatusBadge>
-                  <span className="demo-tag">sessão simulada</span>
+                  <span className="demo-tag">transcrição demonstrativa</span>
                 </div>
                 <Participant
                   person={speaker}
@@ -231,11 +355,19 @@ export function Call() {
                     currentUserId={user?.id}
                     compact
                     active={person.id === speaker.id}
-                    muted={person.id === user?.id && settings.muted}
+                    muted={
+                      muteStates.get(person.id) ??
+                      (person.id === user?.id && settings.muted)
+                    }
                   />
                 ))}
               </section>
-              <ChatPanel />
+              <ChatPanel
+                messages={messages}
+                currentUserId={user?.id}
+                connectionStatus={socket.status}
+                onSend={socket.sendChat}
+              />
             </aside>
           </div>
         )}
@@ -243,6 +375,12 @@ export function Call() {
       <CallControls
         onEnd={() => dialog.current?.showModal()}
         onLanguageChange={(patch) => void updateLanguages(patch)}
+        onMuteChange={async (muted) => {
+          const changed = await audio.setMutedImmediately(muted);
+          if (!changed) return false;
+          socket.setMuted(muted);
+          return true;
+        }}
       />
       <dialog
         ref={dialog}
