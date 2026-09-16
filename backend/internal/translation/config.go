@@ -20,27 +20,37 @@ type Config struct {
 	Provider Provider
 	// GeminiAPIKey is the key required by the Gemini implementation.
 	GeminiAPIKey string
+	// TranslationModel overrides the default Live Translate model.
+	TranslationModel string
+	// GeminiLiveEndpoint overrides the default BidiGenerateContent endpoint.
+	// Intended for proxies and local harnesses in tests.
+	GeminiLiveEndpoint string
 }
 
 // LoadConfig builds Config from environment variables.
 //
 //   - TRANSLATION_PROVIDER selects the Service implementation (default "mock").
-//   - GEMINI_API_KEY is used later by the Gemini implementation.
+//   - GEMINI_API_KEY is required by the Gemini implementation.
+//   - TRANSLATION_MODEL overrides the default Live Translate model.
+//   - GEMINI_LIVE_ENDPOINT overrides the default BidiGenerateContent endpoint.
 func LoadConfig() Config {
 	return Config{
-		Provider:     providerFromEnv(os.Getenv("TRANSLATION_PROVIDER")),
-		GeminiAPIKey: os.Getenv("GEMINI_API_KEY"),
+		Provider:           providerFromEnv(os.Getenv("TRANSLATION_PROVIDER")),
+		GeminiAPIKey:       os.Getenv("GEMINI_API_KEY"),
+		TranslationModel:   os.Getenv("TRANSLATION_MODEL"),
+		GeminiLiveEndpoint: os.Getenv("GEMINI_LIVE_ENDPOINT"),
 	}
 }
 
 // New builds the Service selected by the config. Callers must depend on
-// Service, never on a concrete provider.
+// Service, never on a concrete provider. The Gemini value set indicates the
+// returned service also satisfies SessionOpener.
 func New(config Config) (Service, error) {
 	switch config.Provider {
 	case ProviderMock, "":
 		return NewMockService(), nil
 	case ProviderGemini:
-		return nil, fmt.Errorf("%w: Gemini integration is not implemented yet", ErrProviderNotAvailable)
+		return NewGeminiService(config)
 	default:
 		return nil, fmt.Errorf("%w: %q", ErrUnknownProvider, config.Provider)
 	}

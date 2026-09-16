@@ -3,6 +3,7 @@ package translation
 import (
 	"context"
 	"math"
+	"sync"
 	"time"
 )
 
@@ -26,6 +27,23 @@ func NewMockService() *MockService {
 
 // Name identifies the mock provider.
 func (s *MockService) Name() string { return string(ProviderMock) }
+
+// OpenLiveSession implements SessionOpener with an in-memory session, so the
+// streaming WebSocket pipeline can be exercised without any external provider.
+func (s *MockService) OpenLiveSession(_ context.Context, request OpenRequest) (LiveSession, error) {
+	if err := ValidateOpenRequest(request); err != nil {
+		return nil, err
+	}
+	session := &mockLiveSession{
+		svc:     s,
+		request: request,
+		in:      make(chan AudioInput, 64),
+		out:     make(chan LiveEvent, 64),
+		done:    make(chan struct{}),
+	}
+	go session.run()
+	return session, nil
+}
 
 // Translate returns the original transcription and a deterministic translation
 // for the given audio input.
@@ -77,4 +95,104 @@ func mockTone(format AudioFormat, samples int) []byte {
 		}
 	}
 	return data
+}
+
+// mockLiveSession is the mock's streaming Session implementation. It
+// deterministically processes each audio chunk and emits source transcription,
+// translated transcript, a short translated audio tone, and a turn-complete
+// signal, mirroring the Gemini model's output cadence.
+type mockLiveSession struct {
+	svc     *MockService
+	request OpenRequest
+	in      chan AudioInput
+	out     chan LiveEvent
+	done    chan struct{}
+	once    sync.Once
+}
+
+func (m *mockLiveSession) SendAudio(ctx context.Context, audio AudioInput) error {
+	select {
+	case <-m.done:
+		return ErrSessionClosed
+	default:
+	}
+	if len(audio.Data) == 0 {
+		return ErrEmptyAudio
+	}
+	select {
+	case <-m.done:
+		return ErrSessionClosed
+	case <-ctx.Done():
+		return ctx.Err()
+	case m.in <- audio:
+		return nil
+	}
+}
+
+func (m *mockLiveSession) Events() <-chan LiveEvent { return m.out }
+
+func (m *mockLiveSession) Close(ctx context.Context) error {
+	m.once.Do(func() { close(m.done) })
+	return nil
+}
+
+func (m *mockLiveSession) run() {
+	defer close(m.out)
+	for {
+		select {
+		case <-m.done:
+			return
+		case audio, ok := <-m.in:
+			if !ok {
+				return
+			}
+			m.process(audio)
+		}
+	}
+}
+
+func (m *mockLiveSession) process(audio AudioInput) {
+	sourceText := m.svc.phrases[m.request.SourceLanguage]
+	outputText := m.svc.phrases[m.request.TargetLanguage]
+
+	dataLen := len(audio.Data)
+	if dataLen == 0 {
+		dataLen = 640
+	}
+	tone := mockTone(GeminiOutputFormat, toneSamples(dataLen))
+
+	m.emit(LiveEvent{
+		Kind:           EventInputTranscription,
+		SourceText:     sourceText,
+		SourceLanguage: m.request.SourceLanguage,
+	})
+	m.emit(LiveEvent{
+		Kind:           EventOutputTranscription,
+		OutputText:     outputText,
+		OutputLanguage: m.request.TargetLanguage,
+	})
+	m.emit(LiveEvent{
+		Kind:           EventTranslatedAudio,
+		OutputLanguage: m.request.TargetLanguage,
+		Audio:          AudioOutput{Format: GeminiOutputFormat, Data: tone},
+	})
+	m.emit(LiveEvent{Kind: EventTurnComplete})
+}
+
+func (m *mockLiveSession) emit(event LiveEvent) {
+	select {
+	case <-m.done:
+	case m.out <- event:
+	}
+}
+
+// toneSamples derives a deterministic, non-zero sample count from the input
+// byte count so the test can assert that audio is actually present.
+func toneSamples(inputBytes int) int {
+	const minSamples = 640
+	samples := inputBytes / 2 // two bytes per sample
+	if samples < minSamples {
+		return minSamples
+	}
+	return samples
 }

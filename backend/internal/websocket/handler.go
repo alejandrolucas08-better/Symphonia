@@ -13,6 +13,7 @@ import (
 	coderws "github.com/coder/websocket"
 	"github.com/institucional/symphonia/backend/internal/auth"
 	"github.com/institucional/symphonia/backend/internal/call"
+	"github.com/institucional/symphonia/backend/internal/translation"
 )
 
 type callStore interface {
@@ -25,7 +26,10 @@ type Handler struct {
 	allowedOrigins map[string]struct{}
 }
 
-func NewHandler(calls callStore, hub *Hub) *Handler {
+func NewHandler(calls callStore, hub *Hub, translators ...translation.SessionOpener) *Handler {
+	if len(translators) > 0 {
+		hub.setTranslations(translators[0])
+	}
 	origins := os.Getenv("WS_ALLOWED_ORIGINS")
 	if strings.TrimSpace(origins) == "" {
 		origins = "http://localhost:5173,http://127.0.0.1:5173"

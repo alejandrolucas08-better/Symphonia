@@ -26,14 +26,17 @@ const (
 	AudioSampleRate        = 16000
 	AudioSampleCount       = 320
 
-	EventJoinCall          = "join_call"
-	EventParticipantJoined = "participant_joined"
-	EventParticipantLeft   = "participant_left"
-	EventMessage           = "message"
-	EventMuteState         = "mute_state"
-	EventLanguageChanged   = "language_changed"
-	EventCallEnded         = "call_ended"
-	EventError             = "error"
+	EventJoinCall            = "join_call"
+	EventParticipantJoined   = "participant_joined"
+	EventParticipantLeft     = "participant_left"
+	EventMessage             = "message"
+	EventMuteState           = "mute_state"
+	EventLanguageChanged     = "language_changed"
+	EventCallEnded           = "call_ended"
+	EventError               = "error"
+	EventInputTranscription  = "input_transcription"
+	EventOutputTranscription = "output_transcription"
+	EventTranslatedAudio     = "translated_audio"
 )
 
 var audioMagic = [2]byte{'S', 'A'}
@@ -83,7 +86,8 @@ func DecodeClient(payload []byte) (ClientEnvelope, error) {
 	switch envelope.Type {
 	case EventJoinCall, EventMessage, EventMuteState:
 		return envelope, nil
-	case EventParticipantJoined, EventParticipantLeft, EventLanguageChanged, EventCallEnded, EventError:
+	case EventParticipantJoined, EventParticipantLeft, EventLanguageChanged, EventCallEnded, EventError,
+		EventInputTranscription, EventOutputTranscription, EventTranslatedAudio:
 		return envelope, protocolError("server_only_event", "event type is server-only", envelope.RequestID)
 	default:
 		return envelope, protocolError("unknown_event", "unknown event type", envelope.RequestID)

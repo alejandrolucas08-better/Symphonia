@@ -3,14 +3,19 @@ package websocket
 import (
 	"context"
 	"crypto/rand"
+	"encoding/base64"
+	"encoding/binary"
 	"encoding/hex"
 	"encoding/json"
 	"errors"
+	"fmt"
+	"log"
 	"sync"
 	"time"
 
 	"github.com/coder/websocket"
 	"github.com/institucional/symphonia/backend/internal/call"
+	"github.com/institucional/symphonia/backend/internal/translation"
 )
 
 const (
@@ -23,13 +28,15 @@ const statusConnectionReplaced websocket.StatusCode = 4001
 var errConnectionReplaced = errors.New("connection was replaced or removed")
 
 type Hub struct {
-	mu    sync.Mutex
-	rooms map[string]*room
+	mu           sync.Mutex
+	rooms        map[string]*room
+	translations translation.SessionOpener
 }
 
 type room struct {
 	connections map[int64]*connection
 	muteStates  map[int64]bool
+	sessions    map[int64]*translationSession
 }
 
 type connection struct {
@@ -38,6 +45,26 @@ type connection struct {
 	userID      int64
 	participant call.Participant
 	ready       bool
+}
+
+// translationSession wraps one streaming translation session owned by a room.
+// It translates the voice of session.userID into session.target (the heard
+// language of the receiving peer).
+type translationSession struct {
+	live      translation.LiveSession
+	source    translation.Language
+	target    translation.Language
+	userID    int64
+	code      string
+	closeOnce sync.Once
+}
+
+func (s *translationSession) close() {
+	s.closeOnce.Do(func() {
+		ctx, cancel := context.WithTimeout(context.Background(), 3*time.Second)
+		defer cancel()
+		_ = s.live.Close(ctx)
+	})
 }
 
 type muteState struct {
@@ -49,19 +76,39 @@ func NewHub() *Hub {
 	return &Hub{rooms: make(map[string]*room)}
 }
 
+// setTranslations enables streaming translation for the hub. It must be called
+// before any audio flows; with a nil service the hub only relays raw audio.
+func (h *Hub) setTranslations(service translation.SessionOpener) {
+	h.translations = service
+}
+
 func (h *Hub) add(code string, participant call.Participant, socket *websocket.Conn, requestID string, currentCall *call.Call) (*connection, error) {
 	client := &connection{socket: socket, code: code, userID: participant.UserID, participant: participant}
 	h.mu.Lock()
 	r := h.rooms[code]
 	if r == nil {
-		r = &room{connections: make(map[int64]*connection), muteStates: make(map[int64]bool)}
+		r = &room{
+			connections: make(map[int64]*connection),
+			muteStates:  make(map[int64]bool),
+			sessions:    make(map[int64]*translationSession),
+		}
 		h.rooms[code] = r
 	}
 	old := r.connections[participant.UserID]
 	r.connections[participant.UserID] = client
+	client.ready = true
 	mutes := make([]muteState, 0, len(r.muteStates))
 	for userID, muted := range r.muteStates {
 		mutes = append(mutes, muteState{UserID: userID, Muted: muted})
+	}
+	// Snapshot the peers that must be told about this participant at the moment
+	// of registration, so joins are consistent even if another client joins
+	// while the join_call reply is being written.
+	var peers []*connection
+	for userID, other := range r.connections {
+		if userID != participant.UserID && other.ready {
+			peers = append(peers, other)
+		}
 	}
 	h.mu.Unlock()
 
@@ -84,19 +131,19 @@ func (h *Hub) add(code string, participant call.Participant, socket *websocket.C
 		return nil, err
 	}
 
+	for _, peer := range peers {
+		_ = peer.send(EventParticipantJoined, "", struct {
+			Participant call.Participant `json:"participant"`
+		}{Participant: participant})
+	}
+
 	h.mu.Lock()
 	active := h.rooms[code] == r && r.connections[participant.UserID] == client
-	if active {
-		client.ready = true
-	}
 	h.mu.Unlock()
 	if !active {
-		client.socket.CloseNow()
+		_ = client.socket.Close(statusConnectionReplaced, "connection replaced")
 		return nil, errConnectionReplaced
 	}
-	h.broadcast(code, participant.UserID, EventParticipantJoined, struct {
-		Participant call.Participant `json:"participant"`
-	}{Participant: participant})
 	if old != nil {
 		go func() {
 			_ = old.socket.Close(statusConnectionReplaced, "connection replaced")
@@ -114,10 +161,15 @@ func (h *Hub) remove(client *connection, notify bool) {
 	}
 	delete(r.connections, client.userID)
 	delete(r.muteStates, client.userID)
+	sessions := roomSessions(r)
+	clear(r.sessions)
 	if len(r.connections) == 0 {
 		delete(h.rooms, client.code)
 	}
 	h.mu.Unlock()
+	for _, session := range sessions {
+		session.close()
+	}
 	if notify {
 		h.broadcast(client.code, client.userID, EventParticipantLeft, struct {
 			UserID int64  `json:"user_id"`
@@ -171,35 +223,245 @@ func (h *Hub) audio(sender *connection, payload []byte) {
 			break
 		}
 	}
-	if peer == nil {
-		h.mu.Unlock()
-		return
+	speaker := sender.participant
+	var listener call.Participant
+	if peer != nil {
+		listener = peer.participant
 	}
 	h.mu.Unlock()
-
-	if err := peer.write(websocket.MessageBinary, payload, audioWriteTimeout); err == nil {
+	if peer == nil {
 		return
 	}
 
+	relay := func() {
+		if err := peer.write(websocket.MessageBinary, payload, audioWriteTimeout); err != nil {
+			h.dropPeer(sender.code, peer)
+		}
+	}
+
+	if h.translations == nil || !translationNeeded(speaker, listener) {
+		relay()
+		return
+	}
+
+	target := translation.Language(listener.HeardLanguage)
+	session := h.sessionFor(sender.code, sender.userID, target)
+	if session == nil {
+		opened, err := h.openSession(sender, peer, speaker, listener, target)
+		if err != nil {
+			log.Printf("websocket: open translation session (user %d): %v", sender.userID, err)
+			relay()
+			return
+		}
+		session = opened
+	}
+	ctx, cancel := context.WithTimeout(context.Background(), writeTimeout)
+	defer cancel()
+	if err := session.live.SendAudio(ctx, frameToAudioInput(payload)); err != nil {
+		log.Printf("websocket: send audio to translation session (user %d): %v", sender.userID, err)
+		h.dropSession(session)
+		relay()
+		return
+	}
+}
+
+// dropPeer removes a slow or failed peer and notifies the remaining client.
+func (h *Hub) dropPeer(code string, peer *connection) {
 	h.mu.Lock()
-	r = h.rooms[sender.code]
+	r := h.rooms[code]
 	if r == nil {
 		h.mu.Unlock()
 		return
 	}
-	if r.connections[peer.userID] == peer {
-		delete(r.connections, peer.userID)
-		delete(r.muteStates, peer.userID)
-	} else {
+	if r.connections[peer.userID] != peer {
 		h.mu.Unlock()
 		return
 	}
+	delete(r.connections, peer.userID)
+	delete(r.muteStates, peer.userID)
+	sessions := roomSessions(r)
+	clear(r.sessions)
 	h.mu.Unlock()
+	for _, session := range sessions {
+		session.close()
+	}
 	peer.socket.CloseNow()
-	h.broadcast(sender.code, peer.userID, EventParticipantLeft, struct {
+	h.broadcast(code, peer.userID, EventParticipantLeft, struct {
 		UserID int64  `json:"user_id"`
 		Reason string `json:"reason"`
 	}{UserID: peer.userID, Reason: "disconnected"})
+}
+
+// translationNeeded reports whether the speaker's voice must be translated to
+// reach the peer, i.e. the peer does not hear the speaker's own language.
+func translationNeeded(speaker, peer call.Participant) bool {
+	return speaker.SpokenLanguage != peer.HeardLanguage
+}
+
+// sessionFor returns the live session translating the given user's speech into
+// the requested target language, or nil.
+func (h *Hub) sessionFor(code string, userID int64, target translation.Language) *translationSession {
+	h.mu.Lock()
+	defer h.mu.Unlock()
+	r := h.rooms[code]
+	if r == nil {
+		return nil
+	}
+	session := r.sessions[userID]
+	if session != nil && session.target == target {
+		return session
+	}
+	return nil
+}
+
+// openSession opens a streaming session for a speaker, stores it on the room,
+// and starts dispatching its output to the call.
+func (h *Hub) openSession(sender, peer *connection, speaker, listener call.Participant, target translation.Language) (*translationSession, error) {
+	code := sender.code
+	session, err := h.translations.OpenLiveSession(context.Background(), translation.OpenRequest{
+		ID:             fmt.Sprintf("%s:%d", code, speaker.UserID),
+		SourceLanguage: translation.Language(speaker.SpokenLanguage),
+		TargetLanguage: target,
+		EchoTarget:     true,
+	})
+	if err != nil {
+		return nil, err
+	}
+	active := &translationSession{live: session, source: translation.Language(speaker.SpokenLanguage), target: target, userID: speaker.UserID, code: code}
+
+	h.mu.Lock()
+	r := h.rooms[code]
+	if r == nil || r.connections[speaker.UserID] != sender || r.connections[listener.UserID] != peer ||
+		sender.participant.SpokenLanguage != speaker.SpokenLanguage || peer.participant.HeardLanguage != listener.HeardLanguage {
+		h.mu.Unlock()
+		active.close()
+		return nil, errConnectionReplaced
+	}
+	if stale := r.sessions[speaker.UserID]; stale != nil && stale != active {
+		go stale.close()
+	}
+	r.sessions[speaker.UserID] = active
+	h.mu.Unlock()
+
+	go h.pumpSession(active)
+	return active, nil
+}
+
+// pumpSession forwards a session's output until the session ends, then removes
+// it from the room.
+func (h *Hub) pumpSession(session *translationSession) {
+	defer session.close()
+	for event := range session.live.Events() {
+		h.dispatch(session, event)
+	}
+	h.mu.Lock()
+	if r := h.rooms[session.code]; r != nil && r.sessions[session.userID] == session {
+		delete(r.sessions, session.userID)
+	}
+	h.mu.Unlock()
+}
+
+func (h *Hub) dispatch(session *translationSession, event translation.LiveEvent) {
+	h.mu.Lock()
+	r := h.rooms[session.code]
+	active := r != nil && r.sessions[session.userID] == session
+	h.mu.Unlock()
+	if !active {
+		return
+	}
+	switch event.Kind {
+	case translation.EventInputTranscription:
+		h.broadcast(session.code, 0, EventInputTranscription, transcriptionEvent{
+			UserID:   session.userID,
+			Text:     event.SourceText,
+			Language: event.SourceLanguage,
+		})
+	case translation.EventOutputTranscription:
+		h.broadcast(session.code, 0, EventOutputTranscription, transcriptionEvent{
+			UserID:   session.userID,
+			Text:     event.OutputText,
+			Language: event.OutputLanguage,
+		})
+	case translation.EventTranslatedAudio:
+		h.deliverTranslatedAudio(session, event)
+	case translation.EventSessionError:
+		log.Printf("websocket: translation session error (%s/%d): %v", session.code, session.userID, event.Err)
+		h.dropSession(session)
+	default:
+		// EventTurnComplete and EventInterrupted carry no payload.
+	}
+}
+
+// deliverTranslatedAudio sends a translated audio chunk to the peer listening
+// to this session's speaker.
+func (h *Hub) deliverTranslatedAudio(session *translationSession, event translation.LiveEvent) {
+	h.mu.Lock()
+	r := h.rooms[session.code]
+	var peer *connection
+	if r != nil && r.sessions[session.userID] == session {
+		for userID, client := range r.connections {
+			if userID != session.userID && client.ready {
+				peer = client
+				break
+			}
+		}
+	}
+	h.mu.Unlock()
+	if peer == nil {
+		return
+	}
+	if err := peer.send(EventTranslatedAudio, "", translatedAudioEvent{
+		UserID:   session.userID,
+		MimeType: "audio/pcm;rate=24000",
+		Data:     base64.StdEncoding.EncodeToString(event.Audio.Data),
+	}); err != nil {
+		h.dropPeer(session.code, peer)
+	}
+}
+
+// dropSession removes and closes a translation session.
+func (h *Hub) dropSession(session *translationSession) {
+	h.mu.Lock()
+	if r := h.rooms[session.code]; r != nil && r.sessions[session.userID] == session {
+		delete(r.sessions, session.userID)
+	}
+	h.mu.Unlock()
+	session.close()
+}
+
+// roomSessions returns a copy of a room's sessions. Callers must hold h.mu.
+func roomSessions(r *room) []*translationSession {
+	sessions := make([]*translationSession, 0, len(r.sessions))
+	for _, session := range r.sessions {
+		sessions = append(sessions, session)
+	}
+	return sessions
+}
+
+// transcriptionEvent is broadcast for source transcripts and translated text.
+type transcriptionEvent struct {
+	UserID   int64                `json:"user_id"`
+	Text     string               `json:"text"`
+	Language translation.Language `json:"language"`
+}
+
+// translatedAudioEvent delivers a raw PCM base64 chunk of translated audio.
+type translatedAudioEvent struct {
+	UserID   int64  `json:"user_id"`
+	MimeType string `json:"mime_type"`
+	Data     string `json:"data"`
+}
+
+// frameToAudioInput extracts a translation audio chunk from a valid protocol
+// audio frame.
+func frameToAudioInput(payload []byte) translation.AudioInput {
+	return translation.AudioInput{
+		Format:    translation.DefaultAudioFormat,
+		Data:      append([]byte(nil), payload[AudioHeaderSize:]...),
+		StreamID:  binary.BigEndian.Uint32(payload[8:12]),
+		Sequence:  binary.BigEndian.Uint32(payload[12:16]),
+		Timestamp: binary.BigEndian.Uint32(payload[16:20]),
+	}
 }
 
 func (h *Hub) broadcast(code string, exceptUserID int64, eventType string, data any) {
@@ -233,12 +495,26 @@ func (h *Hub) ParticipantJoined(code string, participant call.Participant) {
 
 func (h *Hub) LanguageChanged(code string, participant call.Participant) {
 	h.mu.Lock()
+	var stale []*translationSession
 	if r := h.rooms[code]; r != nil {
 		if client := r.connections[participant.UserID]; client != nil {
 			client.participant = participant
 		}
+		// Sessions translate each speaker into the changing participant's
+		// heard language; when that target changes, close and reopen lazily.
+		heard := translation.Language(participant.HeardLanguage)
+		for userID, session := range r.sessions {
+			if (userID != participant.UserID && session.target != heard) ||
+				(userID == participant.UserID && session.source != translation.Language(participant.SpokenLanguage)) {
+				delete(r.sessions, userID)
+				stale = append(stale, session)
+			}
+		}
 	}
 	h.mu.Unlock()
+	for _, session := range stale {
+		session.close()
+	}
 	h.broadcast(code, 0, EventLanguageChanged, struct {
 		Participant call.Participant `json:"participant"`
 	}{Participant: participant})
@@ -247,15 +523,21 @@ func (h *Hub) LanguageChanged(code string, participant call.Participant) {
 func (h *Hub) ParticipantLeft(code string, userID int64) {
 	h.mu.Lock()
 	var leaving *connection
+	var sessions []*translationSession
 	if r := h.rooms[code]; r != nil {
 		leaving = r.connections[userID]
 		delete(r.connections, userID)
 		delete(r.muteStates, userID)
+		sessions = roomSessions(r)
+		clear(r.sessions)
 		if len(r.connections) == 0 {
 			delete(h.rooms, code)
 		}
 	}
 	h.mu.Unlock()
+	for _, session := range sessions {
+		session.close()
+	}
 	h.broadcast(code, userID, EventParticipantLeft, struct {
 		UserID int64  `json:"user_id"`
 		Reason string `json:"reason"`
@@ -270,13 +552,18 @@ func (h *Hub) ParticipantLeft(code string, userID int64) {
 func (h *Hub) CallEnded(code string, endedByUserID int64) {
 	h.mu.Lock()
 	var clients []*connection
+	var sessions []*translationSession
 	if r := h.rooms[code]; r != nil {
 		for _, client := range r.connections {
 			clients = append(clients, client)
 		}
+		sessions = roomSessions(r)
 		delete(h.rooms, code)
 	}
 	h.mu.Unlock()
+	for _, session := range sessions {
+		session.close()
+	}
 	data := struct {
 		EndedByUserID int64 `json:"ended_by_user_id"`
 	}{EndedByUserID: endedByUserID}

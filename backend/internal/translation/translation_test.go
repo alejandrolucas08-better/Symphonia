@@ -118,8 +118,8 @@ func TestNewSelectsProvider(t *testing.T) {
 		t.Fatalf("New(empty config) = %v/%v, want mock service", service, err)
 	}
 
-	if _, err := New(Config{Provider: ProviderGemini}); !errors.Is(err, ErrProviderNotAvailable) {
-		t.Fatalf("New(gemini) = %v, want ErrProviderNotAvailable", err)
+	if _, err := New(Config{Provider: ProviderGemini}); !errors.Is(err, ErrGeminiNotConfigured) {
+		t.Fatalf("New(gemini) = %v, want ErrGeminiNotConfigured", err)
 	}
 
 	if _, err := New(Config{Provider: "deep-seek"}); !errors.Is(err, ErrUnknownProvider) {

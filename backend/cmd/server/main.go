@@ -41,8 +41,6 @@ func main() {
 	authHandler := auth.NewHandler(userRepo)
 	callRepo := call.NewRepository(pool)
 	hub := ws.NewHub()
-	callHandler := call.NewHandler(callRepo, hub)
-	websocketHandler := ws.NewHandler(callRepo, hub)
 
 	translator, err := translation.New(translation.LoadConfig())
 	if err != nil {
@@ -50,8 +48,11 @@ func main() {
 	}
 	log.Printf("translation provider: %s", translator.Name())
 
-	mux := http.NewServeMux()
+	opener, _ := translator.(translation.SessionOpener)
+	callHandler := call.NewHandler(callRepo, hub)
+	websocketHandler := ws.NewHandler(callRepo, hub, opener)
 
+	mux := http.NewServeMux()
 	mux.HandleFunc("/healthz", healthHandler)
 	mux.HandleFunc("POST /api/register", authHandler.Register)
 	mux.HandleFunc("POST /api/login", authHandler.Login)
