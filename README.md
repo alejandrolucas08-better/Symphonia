@@ -4,11 +4,11 @@ Symphonia is a web application for real-time communication between two people wh
 
 The MVP goal is an audio call for up to two participants, with live speech transcription and translation.
 
-This repository currently contains only the initial project foundation. Product features such as authentication, calls, WebSocket signaling, audio capture, and Gemini Live Translate are intentionally not implemented yet.
+The frontend now contains a complete visual prototype with mock data: a landing page, login, registration, home, call setup, and an audio-only call room. All interactions run in memory. Real authentication, calls, signaling, audio capture, and Gemini Live Translate are not implemented.
 
 ## Stack
 
-- Frontend: React, TypeScript, Vite
+- Frontend: React, TypeScript, Vite, React Router, Lucide React
 - Backend: Go
 - Database: PostgreSQL
 - Real-time communication: WebSocket
@@ -55,6 +55,25 @@ npm run dev
 ```
 
 The frontend runs at `http://localhost:5173` by default.
+
+The prototype works independently of the backend, Docker, and environment variables. Use fictitious form values. Reloading the page resets the demo profile, settings, and chat.
+
+Routes: `/`, `/login`, `/register`, `/home`, `/call/:id/setup`, and `/call/:id`.
+
+### Frontend Verification
+
+Run from `frontend/`:
+
+```bash
+npm run build
+npm run typecheck
+npx playwright install chromium
+npm run test:e2e
+```
+
+The browser tests cover desktop, tablet, mobile, route navigation, mock forms, call controls, chat, animated signal rendering, and reduced motion. Playwright starts a local Vite server when needed. Test screenshots and traces are written to the ignored `frontend/test-results/` directory.
+
+See [frontend implementation notes](docs/frontend.md) for the component structure and demo behavior.
 
 ## Running the Backend
 

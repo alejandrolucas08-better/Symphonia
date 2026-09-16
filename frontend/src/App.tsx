@@ -1,15 +1,14 @@
+import { BrowserRouter } from "react-router-dom";
+import { DemoProvider } from "./contexts/DemoContext";
+import { AppRoutes } from "./routes/AppRoutes";
+
 function App() {
   return (
-    <main className="app-shell">
-      <section className="intro">
-        <p className="eyebrow">Symphonia</p>
-        <h1>Real-time translated audio calls</h1>
-        <p>
-          Project foundation is ready. Product features will be implemented in
-          upcoming stages.
-        </p>
-      </section>
-    </main>
+    <BrowserRouter>
+      <DemoProvider>
+        <AppRoutes />
+      </DemoProvider>
+    </BrowserRouter>
   );
 }
 
