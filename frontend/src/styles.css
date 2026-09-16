@@ -118,7 +118,7 @@ main:focus {
   display: inline-flex;
   align-items: center;
   gap: 10px;
-  font-size: 11px;
+  font-size: 16px;
   font-weight: 500;
   line-height: 1.6;
 }
@@ -158,7 +158,7 @@ main:focus {
   gap: 10px;
   color: var(--primary-dark);
   font-weight: 600;
-  font-size: 18px;
+  font-size: 19px;
   flex-shrink: 0;
 }
 .header-inner {
@@ -188,7 +188,7 @@ main:focus {
   display: flex;
   align-items: center;
   gap: 40px;
-  font-size: 12px;
+  font-size: 17px;
 }
 .public-header nav a {
   display: flex;
@@ -229,7 +229,7 @@ main:focus {
   display: inline-flex;
   align-items: center;
   gap: 12px;
-  font-size: 11px;
+  font-size: 16px;
   min-height: 40px;
 }
 .subtle-link:hover,
@@ -244,7 +244,7 @@ main:focus {
   min-height: 60px;
   padding: 12px 0;
   border-bottom: 1px solid var(--text);
-  font-size: 14px;
+  font-size: 15px;
   font-weight: 500;
   text-align: left;
   transition:
@@ -277,7 +277,7 @@ main:focus {
   padding: 10px 20px;
   border: 1px solid var(--line);
   border-radius: 4px;
-  font-size: 13px;
+  font-size: 18px;
   transition: background 180ms;
 }
 .button:hover {
@@ -285,14 +285,14 @@ main:focus {
 }
 .demo-tag {
   color: var(--text-secondary);
-  font-size: 10px;
+  font-size: 15px;
   font-weight: 400;
 }
 .status {
   display: inline-flex;
   align-items: center;
   gap: 8px;
-  font-size: 11px;
+  font-size: 16px;
   color: var(--text-secondary);
 }
 .status-dot {
@@ -375,7 +375,7 @@ main:focus {
   animation: fade-up 600ms 300ms both;
 }
 .hero-aside > p {
-  font-size: 13px;
+  font-size: 18px;
   color: var(--text-secondary);
   line-height: 1.9;
 }
@@ -408,7 +408,7 @@ main:focus {
   margin-top: auto;
   padding-top: 150px;
   padding-bottom: 24px;
-  font-size: 10px;
+  font-size: 15px;
 }
 .hero-bottom .subtle-button {
   color: var(--text-secondary);
@@ -430,11 +430,11 @@ main:focus {
   padding-top: 7px;
 }
 .section-index > span {
-  font-size: 12px;
+  font-size: 17px;
   color: var(--signal);
 }
 .section-index h2 {
-  font-size: 11px;
+  font-size: 16px;
   font-weight: 500;
 }
 .about-copy > p {
@@ -462,7 +462,7 @@ main:focus {
 }
 .about-foot p {
   color: var(--text-secondary);
-  font-size: 12px;
+  font-size: 17px;
 }
 .section-title {
   font-size: 38px;
@@ -474,7 +474,7 @@ main:focus {
   color: var(--primary);
 }
 .section-description {
-  font-size: 12px;
+  font-size: 17px;
   margin-top: 24px;
 }
 .process-section {
@@ -494,7 +494,7 @@ main:focus {
     transform 500ms;
 }
 .process-step .eyebrow {
-  font-size: 10px;
+  font-size: 15px;
   color: var(--text-secondary);
 }
 .process-line {
@@ -534,7 +534,7 @@ main:focus {
 }
 .process-step p {
   color: var(--text-secondary);
-  font-size: 11px;
+  font-size: 16px;
   max-width: 220px;
 }
 .reveal {
@@ -610,7 +610,7 @@ main:focus {
   animation: fade-up 350ms;
 }
 .demo-quote > p {
-  font-size: 18px;
+  font-size: 19px;
 }
 .demo-quote .translated {
   font-size: 28px;
@@ -655,7 +655,7 @@ main:focus {
   align-items: center;
   gap: 24px;
   padding-block: 40px 24px;
-  font-size: 10px;
+  font-size: 15px;
 }
 .landing-footer > span {
   color: var(--text-secondary);
@@ -715,13 +715,13 @@ main:focus {
   border: 1px solid #c9d8df;
   background: #eaf0f3;
   color: var(--primary);
-  font-size: 17px;
+  font-size: 18px;
   flex-shrink: 0;
 }
 .avatar-small {
   width: 34px;
   height: 34px;
-  font-size: 11px;
+  font-size: 16px;
 }
 .app-header {
   border-bottom: 1px solid var(--line);
@@ -736,14 +736,14 @@ main:focus {
   min-width: 0;
 }
 .account-name {
-  font-size: 12px;
+  font-size: 17px;
   max-width: 180px;
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
 }
 .room-heading {
-  font-size: 12px;
+  font-size: 17px;
 }
 .room-heading .muted {
   margin-left: 24px;
@@ -773,7 +773,7 @@ main:focus {
   font-weight: 500;
 }
 .auth-intro > .muted {
-  font-size: 11px;
+  font-size: 16px;
 }
 .auth-wave {
   max-width: 380px;
@@ -795,7 +795,7 @@ main:focus {
   margin-bottom: 24px;
 }
 .field label {
-  font-size: 11px;
+  font-size: 16px;
   color: var(--text-secondary);
   margin-bottom: 6px;
   transition: color 200ms;
@@ -808,7 +808,7 @@ main:focus {
   min-height: 48px;
   width: 100%;
   background: transparent;
-  font-size: 13px;
+  font-size: 18px;
   transition: border-color 200ms;
 }
 .field input::placeholder {
@@ -835,13 +835,13 @@ main:focus {
   margin-top: 16px;
 }
 .form-note {
-  font-size: 10px;
+  font-size: 15px;
   color: var(--text-secondary);
   margin-top: 18px;
 }
 .auth-switch {
   margin-top: 40px;
-  font-size: 12px;
+  font-size: 17px;
   color: var(--text-secondary);
   line-height: 2;
 }
@@ -855,7 +855,7 @@ main:focus {
 }
 .error-message {
   color: #a83e3e;
-  font-size: 11px;
+  font-size: 16px;
   margin-top: 12px;
 }
 .simple-footer {
@@ -865,7 +865,7 @@ main:focus {
   padding-block: 24px;
   border-top: 1px solid var(--line);
   color: var(--text-secondary);
-  font-size: 10px;
+  font-size: 15px;
 }
 .home-page {
   padding-top: 64px;
@@ -890,7 +890,7 @@ main:focus {
   font-weight: 500;
 }
 .home-heading > div > .muted {
-  font-size: 13px;
+  font-size: 18px;
 }
 .home-mark {
   color: var(--secondary);
@@ -916,7 +916,7 @@ main:focus {
   display: flex;
   justify-content: space-between;
   align-items: center;
-  font-size: 12px;
+  font-size: 17px;
   color: var(--text-secondary);
   margin-bottom: 24px;
 }
@@ -931,7 +931,7 @@ main:focus {
   color: var(--primary-dark);
 }
 .home-action > p {
-  font-size: 12px;
+  font-size: 17px;
   color: var(--text-secondary);
   margin: 20px 0 24px;
 }
@@ -951,7 +951,7 @@ main:focus {
   background: transparent;
   border: 0;
   padding-block: 12px;
-  font-size: 13px;
+  font-size: 18px;
 }
 .join-button {
   background: var(--primary);
@@ -964,7 +964,7 @@ main:focus {
   display: flex;
   justify-content: space-between;
   gap: 24px;
-  font-size: 10px;
+  font-size: 15px;
   color: var(--text-secondary);
   padding-top: 24px;
 }
@@ -1007,7 +1007,7 @@ main:focus {
   min-width: 0;
 }
 .preview-name {
-  font-size: 13px;
+  font-size: 18px;
   margin-top: 12px;
   overflow-wrap: anywhere;
   max-width: 100%;
@@ -1044,19 +1044,19 @@ main:focus {
   border-bottom: 1px solid var(--line);
 }
 .call-topline h1 {
-  font-size: 12px;
+  font-size: 17px;
   line-height: 1.6;
 }
 .call-topline h1 .room-code {
   color: var(--text-secondary);
   margin-left: 16px;
-  font-size: 10px;
+  font-size: 15px;
 }
 .call-clock {
   display: flex;
   align-items: center;
   gap: 16px;
-  font-size: 11px;
+  font-size: 16px;
   color: var(--text-secondary);
   font-variant-numeric: tabular-nums;
 }
@@ -1080,10 +1080,10 @@ main:focus {
 }
 .stage-label .eyebrow {
   color: var(--text-secondary);
-  font-size: 10px;
+  font-size: 15px;
 }
 .stage-label .status {
-  font-size: 10px;
+  font-size: 15px;
 }
 .speaker {
   display: flex;
@@ -1094,7 +1094,7 @@ main:focus {
 .speaker .avatar {
   width: 46px;
   height: 46px;
-  font-size: 14px;
+  font-size: 15px;
 }
 .speaker .participant-info {
   text-align: center;
@@ -1105,14 +1105,14 @@ main:focus {
   overflow-wrap: anywhere;
 }
 .speaker .participant-name {
-  font-size: 18px;
+  font-size: 19px;
 }
 .speaker .participant-name > span {
-  font-size: 10px;
+  font-size: 15px;
 }
 .participant-language {
   display: block;
-  font-size: 10px;
+  font-size: 15px;
   color: var(--text-secondary);
   margin-top: 4px;
 }
@@ -1122,7 +1122,7 @@ main:focus {
   max-width: 360px;
 }
 .speaker-state {
-  font-size: 10px;
+  font-size: 15px;
   color: var(--text-secondary);
 }
 .speaker.is-speaking .speaker-state {
@@ -1136,11 +1136,11 @@ main:focus {
   min-height: 40px;
 }
 .panel-heading h2 {
-  font-size: 10px;
+  font-size: 15px;
   font-weight: 500;
 }
 .panel-heading > .muted {
-  font-size: 10px;
+  font-size: 15px;
 }
 .transcript {
   padding: 16px 32px 24px 0;
@@ -1151,7 +1151,7 @@ main:focus {
   animation: fade-up 350ms;
 }
 .transcript-attribution {
-  font-size: 10px;
+  font-size: 15px;
   color: var(--text-secondary);
   margin-bottom: 12px;
 }
@@ -1159,7 +1159,7 @@ main:focus {
   margin-left: 8px;
 }
 .original-text {
-  font-size: 17px;
+  font-size: 18px;
   color: var(--text-secondary);
   overflow-wrap: anywhere;
 }
@@ -1167,7 +1167,7 @@ main:focus {
   display: flex;
   gap: 8px;
   align-items: center;
-  font-size: 9px;
+  font-size: 14px;
   color: var(--signal);
   margin: 16px 0 8px;
 }
@@ -1209,10 +1209,10 @@ main:focus {
   min-width: 0;
 }
 .participant-row .participant-name {
-  font-size: 12px;
+  font-size: 17px;
 }
 .participant-row .participant-name > span {
-  font-size: 9px;
+  font-size: 14px;
 }
 .participant-row.is-speaking .avatar {
   border-color: var(--primary);
@@ -1245,7 +1245,7 @@ main:focus {
   overflow-wrap: anywhere;
 }
 .chat-message > p {
-  font-size: 10px;
+  font-size: 15px;
   font-weight: 500;
   display: flex;
   flex-wrap: wrap;
@@ -1254,11 +1254,11 @@ main:focus {
 }
 .chat-message > p span {
   color: var(--text-secondary);
-  font-size: 9px;
+  font-size: 14px;
   font-weight: 400;
 }
 .chat-message > div {
-  font-size: 12px;
+  font-size: 17px;
   color: var(--text-secondary);
   white-space: pre-wrap;
 }
@@ -1271,7 +1271,7 @@ main:focus {
 .chat-form input {
   border: 0;
   background: transparent;
-  font-size: 10px;
+  font-size: 15px;
   width: 100%;
 }
 .call-controls {
@@ -1297,10 +1297,10 @@ main:focus {
   gap: 6px;
 }
 .translation-status .status {
-  font-size: 9px;
+  font-size: 14px;
 }
 .translation-status > span:last-child {
-  font-size: 9px;
+  font-size: 14px;
   margin-left: 14px;
 }
 .control-group {
@@ -1316,7 +1316,7 @@ main:focus {
   min-width: 56px;
 }
 .control-item > span {
-  font-size: 9px;
+  font-size: 14px;
 }
 .control-button {
   width: 46px;
@@ -1348,7 +1348,7 @@ main:focus {
   background: #973737;
 }
 .controls-caption {
-  font-size: 9px;
+  font-size: 14px;
   color: var(--text-secondary);
   text-align: right;
 }
@@ -1388,7 +1388,7 @@ main:focus {
   margin-block: 24px 12px;
 }
 .end-dialog > p {
-  font-size: 12px;
+  font-size: 17px;
   color: var(--text-secondary);
 }
 .dialog-actions {
@@ -1536,7 +1536,7 @@ main:focus {
     font-size: 42px;
   }
   .hero-lead {
-    font-size: 17px;
+    font-size: 18px;
   }
   .hero-message {
     margin-top: 48px;
@@ -1547,10 +1547,10 @@ main:focus {
     padding-top: 0;
   }
   .hero-aside p {
-    font-size: 12px;
+    font-size: 17px;
   }
   .hero-aside .action-link {
-    font-size: 12px;
+    font-size: 17px;
     gap: 12px;
   }
   .section-grid {
@@ -1594,7 +1594,7 @@ main:focus {
     font-size: 34px;
   }
   .auth-intro .eyebrow {
-    font-size: 9px;
+    font-size: 14px;
   }
   .auth-wave {
     margin-block: 40px 24px;
@@ -1616,7 +1616,7 @@ main:focus {
     padding-inline: 0;
   }
   .setup-fields .action-link {
-    font-size: 12px;
+    font-size: 17px;
     gap: 12px;
   }
   .call-grid {
@@ -1634,13 +1634,13 @@ main:focus {
     gap: 8px;
   }
   .participant-row .participant-name {
-    font-size: 11px;
+    font-size: 16px;
   }
   .translated-text {
     font-size: 22px;
   }
   .original-text {
-    font-size: 15px;
+    font-size: 16px;
   }
   .controls-caption {
     display: none;
@@ -1655,7 +1655,7 @@ main:focus {
     padding-inline: 16px;
   }
   .brand {
-    font-size: 15px;
+    font-size: 16px;
     gap: 8px;
   }
   .brand svg {
@@ -1700,7 +1700,7 @@ main:focus {
     margin-bottom: 20px;
   }
   .hero-kicker .eyebrow {
-    font-size: 9px;
+    font-size: 14px;
   }
   .hero-kicker .eyebrow:last-child {
     display: none;
@@ -1711,7 +1711,7 @@ main:focus {
     margin-top: 36px;
   }
   .hero-lead {
-    font-size: 16px;
+    font-size: 17px;
     margin-bottom: 12px;
   }
   .hero h2 {
@@ -1725,7 +1725,7 @@ main:focus {
     flex-wrap: wrap;
   }
   .hero-aside > p {
-    font-size: 10px;
+    font-size: 15px;
     min-width: 100px;
   }
   .hero-aside .action-link {
@@ -1733,7 +1733,7 @@ main:focus {
     max-width: 260px;
     flex: 1;
     min-width: 200px;
-    font-size: 12px;
+    font-size: 17px;
   }
   .hero-signal {
     height: 200px;
@@ -1746,7 +1746,7 @@ main:focus {
   }
   .hero-bottom .subtle-link,
   .hero-bottom .subtle-button {
-    font-size: 9px;
+    font-size: 14px;
     gap: 8px;
   }
   .hero-bottom .subtle-button span {
@@ -1773,13 +1773,13 @@ main:focus {
     margin-top: 32px;
   }
   .about-foot p {
-    font-size: 10px;
+    font-size: 15px;
   }
   .section-title {
     font-size: 28px;
   }
   .section-description {
-    font-size: 11px;
+    font-size: 16px;
   }
   .process-section {
     padding-block: 64px;
@@ -1835,7 +1835,7 @@ main:focus {
     margin-bottom: 40px;
   }
   .demo-top > .eyebrow {
-    font-size: 9px;
+    font-size: 14px;
     max-width: 140px;
   }
   .demo-controls .demo-tag {
@@ -1846,13 +1846,13 @@ main:focus {
     grid-template-columns: 1fr 0.7fr 1fr;
   }
   .demo-people h3 {
-    font-size: 17px;
+    font-size: 18px;
   }
   .demo-people .eyebrow {
-    font-size: 9px;
+    font-size: 14px;
   }
   .demo-people .status {
-    font-size: 9px;
+    font-size: 14px;
     gap: 5px;
   }
   .demo-signal {
@@ -1873,7 +1873,7 @@ main:focus {
     padding-top: 32px;
   }
   .demo-quote > p {
-    font-size: 14px;
+    font-size: 15px;
   }
   .demo-quote .translated {
     font-size: 21px;
@@ -1893,7 +1893,7 @@ main:focus {
     padding-top: 32px;
   }
   .landing-footer > a:last-of-type {
-    font-size: 9px;
+    font-size: 14px;
     gap: 8px;
   }
   .auth-layout {
@@ -1907,7 +1907,7 @@ main:focus {
     margin-top: 20px;
   }
   .auth-intro .eyebrow {
-    font-size: 10px;
+    font-size: 15px;
   }
   .auth-wave,
   .auth-intro > .muted {
@@ -1917,18 +1917,18 @@ main:focus {
     max-width: none;
   }
   .form-kicker {
-    font-size: 10px;
+    font-size: 15px;
     margin-bottom: 24px;
   }
   .field input,
   .field select {
-    font-size: 16px;
+    font-size: 17px;
   }
   .auth-switch {
     margin-top: 32px;
   }
   .simple-footer {
-    font-size: 9px;
+    font-size: 14px;
   }
   .simple-footer > span:last-child {
     display: none;
@@ -1971,7 +1971,7 @@ main:focus {
     gap: 8px;
   }
   .join-field input {
-    font-size: 16px;
+    font-size: 17px;
   }
   .setup-page {
     padding-top: 16px;
@@ -2005,13 +2005,13 @@ main:focus {
     max-width: none;
   }
   .setup-fields .action-link {
-    font-size: 14px;
+    font-size: 15px;
   }
   .call-page {
     padding-bottom: 110px;
   }
   .header-account .status {
-    font-size: 9px;
+    font-size: 14px;
     gap: 5px;
   }
   .header-account .status .demo-tag {
@@ -2036,7 +2036,7 @@ main:focus {
     max-width: 310px;
   }
   .speaker .participant-name {
-    font-size: 17px;
+    font-size: 18px;
   }
   .transcript {
     padding: 12px 0 24px;
@@ -2048,7 +2048,7 @@ main:focus {
     font-size: 24px;
   }
   .original-text {
-    font-size: 16px;
+    font-size: 17px;
   }
   .call-sidebar {
     border-left: 0;
@@ -2058,7 +2058,7 @@ main:focus {
     padding: 20px 0 24px;
   }
   .participant-row .participant-name {
-    font-size: 13px;
+    font-size: 18px;
   }
   .participant-row {
     gap: 12px;
@@ -2072,7 +2072,7 @@ main:focus {
     height: 200px;
   }
   .chat-form input {
-    font-size: 16px;
+    font-size: 17px;
   }
   .controls-inner {
     min-height: 104px;
@@ -2108,7 +2108,7 @@ main:focus {
   .dialog-actions .button {
     flex: 1;
     padding-inline: 12px;
-    font-size: 12px;
+    font-size: 17px;
   }
 }
 @media (max-width: 374px) {
@@ -2144,7 +2144,7 @@ main:focus {
     font-size: 21px;
   }
   .about-copy .about-secondary {
-    font-size: 18px;
+    font-size: 19px;
   }
   .auth-intro h1 {
     font-size: 32px;
