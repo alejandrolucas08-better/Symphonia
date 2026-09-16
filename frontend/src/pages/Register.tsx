@@ -2,18 +2,22 @@ import { useState } from "react";
 import { ArrowUpRight } from "lucide-react";
 import { Link, useNavigate } from "react-router-dom";
 import { AuthLayout } from "../components/layout/AuthLayout";
-import { useDemo } from "../contexts/DemoContext";
+import { useAuth } from "../hooks/useAuth";
+import { userFacingError } from "../services/api";
 
 export function Register() {
   const navigate = useNavigate();
-  const { setName } = useDemo();
+  const { register } = useAuth();
   const [error, setError] = useState("");
+  const [submitting, setSubmitting] = useState(false);
+
   return (
     <AuthLayout title="a conversa" emphasis="COMEÇA AQUI.">
       <p className="eyebrow form-kicker">UM NOVO JEITO DE SE CONECTAR.</p>
       <form
-        onSubmit={(event) => {
+        onSubmit={async (event) => {
           event.preventDefault();
+          setError("");
           const data = new FormData(event.currentTarget);
           const name = String(data.get("name") ?? "").trim();
           if (!name) {
@@ -24,8 +28,19 @@ export function Register() {
             setError("As senhas precisam ser iguais.");
             return;
           }
-          setName(name);
-          navigate("/home");
+          setSubmitting(true);
+          try {
+            await register({
+              name,
+              email: String(data.get("email") ?? ""),
+              password: String(data.get("password") ?? ""),
+            });
+            navigate("/home");
+          } catch (err) {
+            setError(userFacingError(err));
+          } finally {
+            setSubmitting(false);
+          }
         }}
         onChange={() => setError("")}
       >
@@ -83,15 +98,16 @@ export function Register() {
             {error}
           </p>
         )}
-        <button className="action-link form-submit" type="submit">
-          Criar conta{" "}
+        <button
+          className="action-link form-submit"
+          type="submit"
+          disabled={submitting}
+        >
+          {submitting ? "criando..." : "Criar conta"}{" "}
           <span className="action-arrow">
             <ArrowUpRight size={22} />
           </span>
         </button>
-        <p className="form-note">
-          Ambiente demonstrativo. Use dados fictícios.
-        </p>
       </form>
       <p className="auth-switch">
         já possui conta?

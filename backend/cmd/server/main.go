@@ -1,10 +1,15 @@
 package main
 
 import (
+	"context"
 	"encoding/json"
 	"log"
 	"net/http"
 	"os"
+
+	"github.com/institucional/symphonia/backend/internal/auth"
+	"github.com/institucional/symphonia/backend/internal/database"
+	"github.com/institucional/symphonia/backend/internal/user"
 )
 
 type healthResponse struct {
@@ -18,12 +23,30 @@ func main() {
 		port = "8080"
 	}
 
+	ctx := context.Background()
+
+	pool, err := database.Connect(ctx)
+	if err != nil {
+		log.Fatalf("failed to connect to database: %v", err)
+	}
+	defer pool.Close()
+
+	userRepo := user.NewRepository(pool)
+	user.RunMigrations(pool)
+	authHandler := auth.NewHandler(userRepo)
+
 	mux := http.NewServeMux()
+
 	mux.HandleFunc("/healthz", healthHandler)
+	mux.HandleFunc("POST /api/register", authHandler.Register)
+	mux.HandleFunc("POST /api/login", authHandler.Login)
+	mux.HandleFunc("GET /api/session", auth.Chain(authHandler.Session, auth.Middleware))
+
+	handler := auth.CORS(auth.LogRequest(mux))
 
 	server := &http.Server{
 		Addr:    ":" + port,
-		Handler: mux,
+		Handler: handler,
 	}
 
 	log.Printf("Symphonia backend listening on :%s", port)

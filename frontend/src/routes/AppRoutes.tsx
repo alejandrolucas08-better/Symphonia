@@ -6,6 +6,7 @@ import { Register } from "../pages/Register";
 import { Home } from "../pages/Home";
 import { CallSetup } from "../pages/CallSetup";
 import { Call } from "../pages/Call";
+import { ProtectedRoute } from "../components/auth/ProtectedRoute";
 
 const titles: Record<string, string> = {
   "/": "Sua voz aproxima",
@@ -36,9 +37,30 @@ export function AppRoutes() {
         <Route path="/" element={<Landing />} />
         <Route path="/login" element={<Login />} />
         <Route path="/register" element={<Register />} />
-        <Route path="/home" element={<Home />} />
-        <Route path="/call/:id/setup" element={<CallSetup />} />
-        <Route path="/call/:id" element={<Call />} />
+        <Route
+          path="/home"
+          element={
+            <ProtectedRoute>
+              <Home />
+            </ProtectedRoute>
+          }
+        />
+        <Route
+          path="/call/:id/setup"
+          element={
+            <ProtectedRoute>
+              <CallSetup />
+            </ProtectedRoute>
+          }
+        />
+        <Route
+          path="/call/:id"
+          element={
+            <ProtectedRoute>
+              <Call />
+            </ProtectedRoute>
+          }
+        />
         <Route
           path="*"
           element={

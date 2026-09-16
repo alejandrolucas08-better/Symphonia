@@ -1,5 +1,12 @@
-import { createContext, useContext, useState, type ReactNode } from "react";
+import {
+  createContext,
+  useContext,
+  useEffect,
+  useState,
+  type ReactNode,
+} from "react";
 import type { LanguageCode } from "../types/demo";
+import { useAuth } from "../hooks/useAuth";
 
 type Settings = {
   spoken: LanguageCode;
@@ -23,8 +30,14 @@ const defaults: Settings = {
 const DemoContext = createContext<DemoState | null>(null);
 
 export function DemoProvider({ children }: { children: ReactNode }) {
-  const [name, setName] = useState("Alejandro");
+  const { user } = useAuth();
+  const [name, setName] = useState(user?.name ?? "Alejandro");
   const [settings, setSettings] = useState<Settings>(defaults);
+
+  useEffect(() => {
+    if (user) setName(user.name);
+  }, [user]);
+
   return (
     <DemoContext.Provider
       value={{

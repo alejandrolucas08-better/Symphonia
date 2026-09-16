@@ -1,20 +1,38 @@
+import { useState } from "react";
 import { ArrowUpRight } from "lucide-react";
 import { Link, useNavigate } from "react-router-dom";
 import { AuthLayout } from "../components/layout/AuthLayout";
-import { useDemo } from "../contexts/DemoContext";
+import { useAuth } from "../hooks/useAuth";
+import { userFacingError } from "../services/api";
 
 export function Login() {
   const navigate = useNavigate();
-  const { setName } = useDemo();
+  const { login } = useAuth();
+  const [error, setError] = useState("");
+  const [submitting, setSubmitting] = useState(false);
+
   return (
     <AuthLayout title="entre na sua" emphasis="CONTA.">
       <p className="eyebrow form-kicker">BOM TER VOCÊ POR AQUI.</p>
       <form
-        onSubmit={(event) => {
+        onSubmit={async (event) => {
           event.preventDefault();
-          setName("Alejandro");
-          navigate("/home");
+          setError("");
+          setSubmitting(true);
+          try {
+            const data = new FormData(event.currentTarget);
+            await login({
+              email: String(data.get("email") ?? ""),
+              password: String(data.get("password") ?? ""),
+            });
+            navigate("/home");
+          } catch (err) {
+            setError(userFacingError(err));
+          } finally {
+            setSubmitting(false);
+          }
         }}
+        onChange={() => setError("")}
       >
         <div className="field">
           <label htmlFor="email">email</label>
@@ -39,15 +57,21 @@ export function Login() {
             required
           />
         </div>
-        <button className="action-link form-submit" type="submit">
-          Entrar{" "}
+        {error && (
+          <p className="error-message" role="alert">
+            {error}
+          </p>
+        )}
+        <button
+          className="action-link form-submit"
+          type="submit"
+          disabled={submitting}
+        >
+          {submitting ? "entrando..." : "Entrar"}{" "}
           <span className="action-arrow">
             <ArrowUpRight size={22} />
           </span>
         </button>
-        <p className="form-note">
-          Ambiente demonstrativo. Use dados fictícios.
-        </p>
       </form>
       <p className="auth-switch">
         ainda não possui conta?

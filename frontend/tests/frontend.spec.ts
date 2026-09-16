@@ -1,4 +1,10 @@
 import { test, expect } from "@playwright/test";
+import {
+  mockAuthenticated,
+  mockLogin,
+  mockRegister,
+  defaultUser,
+} from "./helpers";
 
 const routes = [
   "/",
@@ -17,6 +23,7 @@ test.beforeEach(async ({ page }) => {
       },
     });
   });
+  await mockAuthenticated(page);
 });
 
 for (const route of routes) {
@@ -81,6 +88,9 @@ for (const route of routes) {
 test("registration validation, create call, preferences, chat and end", async ({
   page,
 }) => {
+  await mockRegister(page, {
+    user: { ...defaultUser, name: "Alex Silva", email: "alex@example.com" },
+  });
   await page.goto("/register");
   await page.getByLabel("nome", { exact: true }).fill("Alex Silva");
   await page.getByLabel("email", { exact: true }).fill("alex@example.com");
@@ -145,6 +155,7 @@ test("registration validation, create call, preferences, chat and end", async ({
 });
 
 test("login, join validation and deep-link reload", async ({ page }) => {
+  await mockLogin(page);
   await page.goto("/login");
   await page.getByLabel("email", { exact: true }).fill("demo@example.com");
   await page.getByLabel("senha", { exact: true }).fill("demo-password");
