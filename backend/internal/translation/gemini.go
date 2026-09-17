@@ -13,12 +13,14 @@ import (
 	"time"
 
 	coderws "github.com/coder/websocket"
+	"golang.org/x/oauth2"
+	"golang.org/x/oauth2/google"
 )
 
 // Model and endpoint constants follow the official Gemini Live API documenta-
 // tion for gemini-3.5-live-translate-preview:
 //
-//	https://ai.google.dev/gemini-api/docs/live-api/live-translate
+//	https://docs.cloud.google.com/gemini-enterprise-agent-platform/models/gemini/3-5-live-translate
 const (
 	// DefaultTranslationModel is the preview speech-to-speech translation model.
 	DefaultTranslationModel = "gemini-3.5-live-translate-preview"
@@ -62,6 +64,8 @@ type GeminiTranslationService struct {
 	apiKey   string
 	model    string
 	endpoint string
+	project  string
+	token    func(context.Context) (*oauth2.Token, error)
 }
 
 // NewGeminiService validates the configuration and returns a Gemini-backed
@@ -70,13 +74,25 @@ func NewGeminiService(config Config) (*GeminiTranslationService, error) {
 	if config.Provider != ProviderGemini {
 		return nil, fmt.Errorf("%w: provider %q", ErrUnknownProvider, config.Provider)
 	}
-	if config.GeminiAPIKey == "" {
-		return nil, fmt.Errorf("%w: GEMINI_API_KEY is required", ErrGeminiNotConfigured)
+	if config.GeminiAPIKey == "" && config.GoogleCloudProject == "" {
+		return nil, fmt.Errorf("%w: GOOGLE_CLOUD_PROJECT with ADC or GEMINI_API_KEY is required", ErrGeminiNotConfigured)
 	}
 	service := &GeminiTranslationService{
 		apiKey:   config.GeminiAPIKey,
 		model:    DefaultTranslationModel,
 		endpoint: DefaultGeminiLiveEndpoint,
+		project:  config.GoogleCloudProject,
+	}
+	if service.project != "" {
+		service.apiKey = ""
+		service.endpoint = "wss://aiplatform.googleapis.com/ws/google.cloud.aiplatform.v1beta1.LlmBidiService/BidiGenerateContent"
+		service.token = func(ctx context.Context) (*oauth2.Token, error) {
+			credentials, err := google.FindDefaultCredentials(ctx, "https://www.googleapis.com/auth/cloud-platform")
+			if err != nil {
+				return nil, err
+			}
+			return credentials.TokenSource.Token()
+		}
 	}
 	if config.TranslationModel != "" {
 		service.model = config.TranslationModel
@@ -175,7 +191,7 @@ func (g *GeminiTranslationService) OpenLiveSession(ctx context.Context, request 
 	if err := ValidateOpenRequest(request); err != nil {
 		return nil, err
 	}
-	if g.apiKey == "" {
+	if g.apiKey == "" && g.token == nil {
 		return nil, fmt.Errorf("%w: GEMINI_API_KEY is required", ErrGeminiNotConfigured)
 	}
 	target, err := geminiLanguageCode(request.TargetLanguage)
@@ -185,13 +201,21 @@ func (g *GeminiTranslationService) OpenLiveSession(ctx context.Context, request 
 
 	dialCtx, cancel := context.WithTimeout(ctx, geminiSetupTimeout)
 	defer cancel()
-	endpoint, err := geminiEndpoint(g.endpoint, g.apiKey)
+	endpoint, err := geminiEndpoint(g.endpoint)
 	if err != nil {
 		return nil, fmt.Errorf("%w: endpoint: %v", ErrGeminiSetup, err)
 	}
-	conn, response, err := coderws.Dial(dialCtx, endpoint, &coderws.DialOptions{
-		HTTPHeader: http.Header{"x-goog-api-key": []string{g.apiKey}},
-	})
+	headers := make(http.Header)
+	if g.token != nil {
+		token, err := g.token(dialCtx)
+		if err != nil {
+			return nil, fmt.Errorf("%w: ADC token unavailable", ErrGeminiNotConfigured)
+		}
+		headers.Set("Authorization", "Bearer "+token.AccessToken)
+	} else {
+		headers.Set("x-goog-api-key", g.apiKey)
+	}
+	conn, response, err := coderws.Dial(dialCtx, endpoint, &coderws.DialOptions{HTTPHeader: headers})
 	if err != nil {
 		return nil, fmt.Errorf("%w: connect: %v", ErrGeminiSetup, err)
 	}
@@ -220,30 +244,41 @@ func (g *GeminiTranslationService) OpenLiveSession(ctx context.Context, request 
 		session.Close(dialCtx)
 		return nil, err
 	}
+	go func() {
+		select {
+		case <-ctx.Done():
+			_ = session.Close(context.Background())
+		case <-session.done:
+		}
+	}()
 	return session, nil
 }
 
-func geminiEndpoint(endpoint, apiKey string) (string, error) {
+func geminiEndpoint(endpoint string) (string, error) {
 	value, err := url.Parse(endpoint)
 	if err != nil {
 		return "", err
 	}
 	query := value.Query()
-	query.Set("key", apiKey)
+	query.Del("key")
 	value.RawQuery = query.Encode()
 	return value.String(), nil
 }
 
 // setupMessage matches the official Live Translate WebSocket shape, where the
-// transcription toggles and translationConfig live inside generationConfig.
+// transcription toggles live in setup; translationConfig is in generationConfig.
 func (g *GeminiTranslationService) setupMessage(request OpenRequest, target string) map[string]any {
+	model := "models/" + g.model
+	if g.project != "" {
+		model = "projects/" + g.project + "/locations/global/publishers/google/models/" + g.model
+	}
 	return map[string]any{
 		"setup": map[string]any{
-			"model": "models/" + g.model,
+			"model":                    model,
+			"inputAudioTranscription":  map[string]any{},
+			"outputAudioTranscription": map[string]any{},
 			"generationConfig": map[string]any{
-				"responseModalities":       []string{"AUDIO"},
-				"inputAudioTranscription":  map[string]any{},
-				"outputAudioTranscription": map[string]any{},
+				"responseModalities": []string{"AUDIO"},
 				"translationConfig": map[string]any{
 					"targetLanguageCode": target,
 					"echoTargetLanguage": request.EchoTarget,
@@ -416,11 +451,14 @@ func (s *geminiLiveSession) signalEndLocked(ctx context.Context) error {
 
 func (s *geminiLiveSession) Close(ctx context.Context) error {
 	s.closeOnce.Do(func() {
+		close(s.done)
 		ctx, cancel := context.WithTimeout(ctx, 3*time.Second)
 		defer cancel()
+		stop := context.AfterFunc(ctx, func() { _ = s.conn.CloseNow() })
+		defer stop()
 		s.writeMu.Lock()
-		_ = s.signalEndLocked(ctx)
-		close(s.done)
+		s.pending = nil
+		s.ended = true
 		s.writeMu.Unlock()
 		_ = s.conn.Close(coderws.StatusNormalClosure, "session closed")
 	})
@@ -465,6 +503,7 @@ func (s *geminiLiveSession) emit(event LiveEvent) bool {
 
 func (s *geminiLiveSession) readLoop() {
 	defer close(s.out)
+	defer s.Close(context.Background())
 	defer s.conn.CloseNow()
 	for {
 		if err := s.readMessage(); err != nil {

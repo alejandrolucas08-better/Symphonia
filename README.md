@@ -64,39 +64,43 @@ frontend through Docker's internal network.
 
 The following steps cannot be automated by the repository:
 
-1. Create or select a Google AI project and obtain an API key that has access to
-   the Gemini API and the preview model `gemini-3.5-live-translate-preview`.
+1. Create or select a Google Cloud project, enable Vertex AI and grant the backend
+   identity access to the preview model `gemini-3.5-live-translate-preview`.
    Model availability, billing and regional restrictions are controlled by Google.
-2. Keep the key only in the local `.env` file. Never place it in source code or
-   commit it. Configure:
+2. Use Application Default Credentials (ADC), via an attached service account,
+   `gcloud auth application-default login`, or a local credentials file. Configure:
 
    ```dotenv
    TRANSLATION_PROVIDER=gemini
-   GEMINI_API_KEY=your-real-key
+   GOOGLE_CLOUD_PROJECT=your-project
    TRANSLATION_MODEL=gemini-3.5-live-translate-preview
    ```
 
-3. Start all services with `docker compose up --build`, or export the variables
+3. For local Docker, set `GOOGLE_APPLICATION_CREDENTIALS` to the host credentials
+   path and use `docker compose -f docker-compose.yml -f docker-compose.adc.yml up --build`.
+   Alternatively, export the variables
    in the shell that starts `go run ./cmd/server`. A successful backend startup
    prints `translation provider: gemini`.
-4. Optionally validate the key, model access and Live WebSocket handshake directly
+4. Optionally validate ADC, model access and Live WebSocket handshake directly
    from `backend/`. This test contacts Google and is skipped during normal tests:
 
    ```bash
    GEMINI_LIVE_INTEGRATION=1 \
-   GEMINI_API_KEY="your-real-key" \
+   GOOGLE_CLOUD_PROJECT="your-project" \
    go test ./internal/translation -run TestGeminiLiveIntegration -v
    ```
 
 5. Open the same call as two different users, choose different spoken/heard
-   languages, allow microphone access and speak. The listener receives 24 kHz
-   translated PCM audio; the call screen replaces its demo text when real input
+   languages, allow microphone access and speak. For PT↔EN, configure A to speak/hear
+   Portuguese and B to speak/hear English. The listener receives 16 kHz binary
+   translated PCM (resampled from Gemini's 24 kHz); the call screen replaces its demo text when real input
    and output transcription events arrive.
 
-The backend sends the API key directly to Google over TLS; it is never exposed to
-the browser. If Google rejects setup, inspect the backend log for `gemini session
-setup failed`. Typical manual causes are an invalid/restricted key, unavailable
-preview model, disabled billing/API, or an unsupported region.
+Credentials stay in the backend. Vertex ADC takes precedence when a project is
+configured; API-key compatibility remains available without a project. Provider
+errors produce `translation_unavailable` without exposing credentials or relaying
+untranslated speech. See [translation documentation](docs/translation.md) for
+official references, lifecycle behavior, tests, and preview limitations.
 
 ## Running the Frontend
 

@@ -131,6 +131,22 @@ func (h *Handler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 }
 
 func (h *Handler) readLoop(ctx context.Context, client *connection) {
+	// Keep provider setup/writes off the socket reader so mute/end/disconnect
+	// remain responsive. At most 500 ms of microphone audio is buffered.
+	audio := make(chan []byte, 25)
+	done := make(chan struct{})
+	go func() {
+		defer close(done)
+		for {
+			select {
+			case <-client.ctx.Done():
+				return
+			case payload := <-audio:
+				h.hub.audio(client, payload)
+			}
+		}
+	}()
+	defer func() { client.cancel(); <-done }()
 	for {
 		messageType, payload, err := client.socket.Read(ctx)
 		if err != nil {
@@ -141,7 +157,10 @@ func (h *Handler) readLoop(ctx context.Context, client *connection) {
 				client.sendError("", "invalid_audio_frame", "invalid audio frame")
 				continue
 			}
-			h.hub.audio(client, payload)
+			select {
+			case audio <- payload:
+			default: // bounded best effort; do not retain a growing backlog
+			}
 			continue
 		}
 		if messageType != coderws.MessageText {

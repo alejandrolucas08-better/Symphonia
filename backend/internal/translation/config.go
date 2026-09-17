@@ -18,8 +18,10 @@ const (
 type Config struct {
 	// Provider selects the Service implementation.
 	Provider Provider
-	// GeminiAPIKey is the key required by the Gemini implementation.
+	// GeminiAPIKey selects Developer API when GoogleCloudProject is empty.
 	GeminiAPIKey string
+	// GoogleCloudProject enables Vertex ADC authentication instead of API keys.
+	GoogleCloudProject string
 	// TranslationModel overrides the default Live Translate model.
 	TranslationModel string
 	// GeminiLiveEndpoint overrides the default BidiGenerateContent endpoint.
@@ -30,13 +32,15 @@ type Config struct {
 // LoadConfig builds Config from environment variables.
 //
 //   - TRANSLATION_PROVIDER selects the Service implementation (default "mock").
-//   - GEMINI_API_KEY is required by the Gemini implementation.
+//   - GOOGLE_CLOUD_PROJECT selects Vertex ADC (global location).
+//   - GEMINI_API_KEY selects Developer API when the project is empty.
 //   - TRANSLATION_MODEL overrides the default Live Translate model.
 //   - GEMINI_LIVE_ENDPOINT overrides the default BidiGenerateContent endpoint.
 func LoadConfig() Config {
 	return Config{
 		Provider:           providerFromEnv(os.Getenv("TRANSLATION_PROVIDER")),
 		GeminiAPIKey:       os.Getenv("GEMINI_API_KEY"),
+		GoogleCloudProject: strings.TrimSpace(os.Getenv("GOOGLE_CLOUD_PROJECT")),
 		TranslationModel:   os.Getenv("TRANSLATION_MODEL"),
 		GeminiLiveEndpoint: os.Getenv("GEMINI_LIVE_ENDPOINT"),
 	}

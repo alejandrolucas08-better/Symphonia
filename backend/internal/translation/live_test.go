@@ -333,8 +333,8 @@ func TestGeminiSessionAgainstFakeServer(t *testing.T) {
 	if gotAPIKeyCopy != "test-only-key" {
 		t.Errorf("api key header = %q, want test-only-key", gotAPIKeyCopy)
 	}
-	if gotQueryKeyCopy != "test-only-key" {
-		t.Errorf("api key query = %q, want test-only-key", gotQueryKeyCopy)
+	if gotQueryKeyCopy != "" {
+		t.Errorf("api key leaked in query = %q", gotQueryKeyCopy)
 	}
 	if !strings.Contains(gotModelCopy, DefaultTranslationModel) {
 		t.Errorf("setup model = %q, want to contain %q", gotModelCopy, DefaultTranslationModel)
@@ -389,15 +389,9 @@ func TestGeminiLiveIntegration(t *testing.T) {
 	if os.Getenv("GEMINI_LIVE_INTEGRATION") != "1" {
 		t.Skip("set GEMINI_LIVE_INTEGRATION=1 to call the real Gemini Live API")
 	}
-	apiKey := os.Getenv("GEMINI_API_KEY")
-	if apiKey == "" {
-		t.Fatal("GEMINI_API_KEY is required for the live integration test")
-	}
-	service, err := NewGeminiService(Config{
-		Provider:         ProviderGemini,
-		GeminiAPIKey:     apiKey,
-		TranslationModel: os.Getenv("TRANSLATION_MODEL"),
-	})
+	config := LoadConfig()
+	config.Provider = ProviderGemini
+	service, err := NewGeminiService(config)
 	if err != nil {
 		t.Fatal(err)
 	}

@@ -1,0 +1,10 @@
+# Optional: docker compose -f docker-compose.yml -f docker-compose.adc.yml up --build
+services:
+  backend:
+    environment:
+      GOOGLE_APPLICATION_CREDENTIALS: /run/secrets/google-adc
+    secrets:
+      - google-adc
+secrets:
+  google-adc:
+    file: ${GOOGLE_APPLICATION_CREDENTIALS:?Set the host path to an ADC credentials file}

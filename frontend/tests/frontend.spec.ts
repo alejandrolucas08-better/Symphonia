@@ -306,7 +306,7 @@ test("translation follows the original and speakers alternate", async ({
   await expect(page.locator(".speaker .participant-name")).toHaveText("Mateus");
 });
 
-test("Gemini events update transcript and play translated audio at 24 kHz", async ({
+test("Gemini transcripts and resampled binary audio reach the listener at 16 kHz", async ({
   page,
 }) => {
   await page.goto("/call/demo-room");
@@ -322,11 +322,13 @@ test("Gemini events update transcript and play translated audio at 24 kHz", asyn
     text: "Como está o projeto?",
     language: "PT-BR",
   });
-  socketMock.send(CALL_EVENT.TRANSLATED_AUDIO, {
-    user_id: 2,
-    mime_type: "audio/pcm;rate=24000",
-    data: "AACAPw==",
-  });
+  const frame = new Uint8Array(664);
+  frame.set([83, 65, 1, 1, 1, 1, 1, 24]);
+  const view = new DataView(frame.buffer);
+  view.setUint32(8, 42);
+  view.setUint16(20, 16000);
+  view.setUint16(22, 320);
+  socketMock.sendBinary(Array.from(frame));
 
   await expect(page.locator(".stage-label .demo-tag")).toHaveText("Gemini Live");
   await expect(page.locator(".original-text")).toHaveText("How is the project?");
@@ -339,7 +341,7 @@ test("Gemini events update transcript and play translated audio at 24 kHz", asyn
             .__testPlaybackSampleRates,
       ),
     )
-    .toContain(24000);
+    .toContain(16000);
 });
 
 test("create uses the canonical code returned by the API", async ({ page }) => {

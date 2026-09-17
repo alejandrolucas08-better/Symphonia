@@ -1,8 +1,8 @@
 package websocket
 
 import (
+	"bytes"
 	"context"
-	"encoding/base64"
 	"net/http"
 	"net/http/httptest"
 	"testing"
@@ -77,20 +77,10 @@ func TestHubTranslatesAudioAndRelaysRawWhenNotNeeded(t *testing.T) {
 		t.Error("output transcription text is empty")
 	}
 
-	audioEvent := readEnvelope(t, bia)
-	if audioEvent.Type != EventTranslatedAudio {
-		t.Fatalf("event = %q, want %q", audioEvent.Type, EventTranslatedAudio)
-	}
-	var audio translatedAudioEvent
-	decodeEventData(t, audioEvent, &audio)
-	if audio.UserID != 1 {
-		t.Errorf("user_id = %d, want 1", audio.UserID)
-	}
-	if audio.MimeType != "audio/pcm;rate=24000" {
-		t.Errorf("mime_type = %q, want audio/pcm;rate=24000", audio.MimeType)
-	}
-	if data, err := base64.StdEncoding.DecodeString(audio.Data); err != nil || len(data) == 0 {
-		t.Errorf("translated audio data undecodable or empty (err=%v)", err)
+	audio := readTranslatedFrame(t, bia)
+	_ = readTranslatedFrame(t, bia) // padded remainder of the mock's 640 samples at 24 kHz
+	if bytes.Equal(audio, frame) {
+		t.Fatal("original audio relayed instead of translation")
 	}
 
 	// The raw binary frame must never be relayed when translation is active.
@@ -131,7 +121,8 @@ func TestHubReopensSessionWhenHeardLanguageChanges(t *testing.T) {
 	if first.Language != translation.LanguageSpanish {
 		t.Fatalf("first output language = %q, want %q", first.Language, translation.LanguageSpanish)
 	}
-	_ = readEnvelope(t, bia) // translated audio
+	_ = readTranslatedFrame(t, bia)
+	_ = readTranslatedFrame(t, bia)
 
 	// Bia switches her heard language to French; sessions must be recreated.
 	hub.LanguageChanged(value.Code, call.Participant{
@@ -180,7 +171,8 @@ func TestHubClosesSessionsWhenRoomTeardown(t *testing.T) {
 	writeBinary(t, ada, testAudioFrame(1, 1, 320))
 	_ = readEnvelope(t, bia) // input transcription
 	_ = readEnvelope(t, bia) // output transcription
-	_ = readEnvelope(t, bia) // translated audio
+	_ = readTranslatedFrame(t, bia)
+	_ = readTranslatedFrame(t, bia)
 
 	if err := bia.Close(coderws.StatusNormalClosure, "bye"); err != nil {
 		t.Fatalf("close bia socket: %v", err)
@@ -205,4 +197,15 @@ func TestHubClosesSessionsWhenRoomTeardown(t *testing.T) {
 		}
 	}
 	t.Fatal("room was never removed after all clients left")
+}
+
+func readTranslatedFrame(t *testing.T, socket *coderws.Conn) []byte {
+	t.Helper()
+	ctx, cancel := context.WithTimeout(context.Background(), 2*time.Second)
+	defer cancel()
+	kind, data, err := socket.Read(ctx)
+	if err != nil || kind != coderws.MessageBinary || !ValidateAudioFrame(data) {
+		t.Fatalf("expected translated PCM16 16 kHz binary frame, kind=%v err=%v", kind, err)
+	}
+	return data
 }

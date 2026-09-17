@@ -124,7 +124,7 @@ After `join_call` succeeds, either participant may send PCM audio as a WebSocket
 | 22 | 2 | uint16, big-endian | Sample count `320` |
 | 24 | 640 | 320 signed int16, little-endian | PCM samples |
 
-The sequence and sample timestamp fields may use the full uint32 range. A frame represents 20 ms of mono audio. The server validates every field and relays a valid frame byte-for-byte only to the other connected, ready participant. It never echoes audio to the sender. Audio sent while the sender's server-side mute state is true, or while no peer is ready, is dropped.
+The sequence and sample timestamp fields may use the full uint32 range. A frame represents 20 ms of mono audio. The server validates every field. When translation is unnecessary it relays frames unchanged to the other ready participant. Otherwise it sends microphone PCM to the translation service and returns translated speech using the same binary format, resampled to 16 kHz with a new stream ID. It never echoes audio to the sender. Audio sent while muted or without a ready peer is dropped.
 
 An invalid binary frame is dropped and produces the generic JSON error `invalid_audio_frame`; validation details are intentionally not exposed. The first frame after upgrade must still be the text `join_call` event. Binary data before it produces an error and an unsupported-data close.
 
