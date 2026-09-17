@@ -526,17 +526,14 @@ func (s *geminiLiveSession) isDone() bool {
 }
 
 func (s *geminiLiveSession) readMessage() error {
-	messageType, payload, err := s.conn.Read(context.Background())
+	_, payload, err := s.conn.Read(context.Background())
 	if err != nil {
 		if s.isDone() || isNormalClose(err) {
 			return ErrSessionClosed
 		}
 		return fmt.Errorf("%w: read: %v", ErrSessionFailed, err)
 	}
-	if messageType != coderws.MessageText {
-		return nil
-	}
-
+	// Live endpoints can return JSON in either text or binary WebSocket frames.
 	var message liveMessage
 	if err := json.Unmarshal(payload, &message); err != nil {
 		return fmt.Errorf("%w: decode server message: %v", ErrSessionFailed, err)

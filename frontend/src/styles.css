@@ -1291,6 +1291,46 @@ main:focus {
 .participant-row.is-speaking .participant-mic {
   color: var(--success);
 }
+.chat-drawer {
+  position: fixed;
+  inset: 16px 16px 16px auto;
+  margin: 0;
+  width: min(420px, calc(100vw - 32px));
+  height: calc(100dvh - 32px);
+  max-height: none;
+  max-width: none;
+  padding: 0;
+  overflow: hidden;
+  color: var(--text);
+  background: var(--background);
+  border: 1px solid var(--line);
+  border-radius: 16px;
+  box-shadow: 0 16px 60px #0003;
+}
+.chat-drawer::backdrop {
+  background: #0003;
+}
+.chat-drawer .chat-panel {
+  box-sizing: border-box;
+  height: 100%;
+  min-height: 0;
+  padding: 20px;
+}
+.chat-drawer .chat-messages {
+  flex: 1 1 0;
+  height: auto;
+  min-height: 0;
+}
+.chat-drawer .panel-heading,
+.chat-drawer .chat-form {
+  flex-shrink: 0;
+}
+.chat-form input {
+  min-width: 0;
+}
+.chat-form button {
+  flex-shrink: 0;
+}
 .chat-panel {
   display: flex;
   flex: 1;
@@ -2153,8 +2193,8 @@ main:focus {
   .control-group {
     justify-content: space-between;
     width: 100%;
-    max-width: 340px;
-    gap: 10px;
+    max-width: 390px;
+    gap: 6px;
   }
   .control-button {
     width: 46px;
@@ -2162,6 +2202,15 @@ main:focus {
   }
   .control-item {
     gap: 8px;
+    min-width: 0;
+    flex: 1;
+  }
+  .control-item > span {
+    font-size: 11px;
+    text-align: center;
+  }
+  .control-separator {
+    display: none;
   }
   .end-dialog {
     padding: 24px;

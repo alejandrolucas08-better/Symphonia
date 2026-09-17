@@ -36,6 +36,7 @@ export function Call() {
   const [endPending, setEndPending] = useState(false);
   const [seconds, setSeconds] = useState(0);
   const [messages, setMessages] = useState<RealtimeMessage[]>([]);
+  const [chatOpen, setChatOpen] = useState(false);
   const [muteStates, setMuteStates] = useState<Map<number, boolean>>(new Map());
   const [liveTranscript, setLiveTranscript] = useState<{
     userId: number;
@@ -413,6 +414,8 @@ export function Call() {
                 ))}
               </section>
               <ChatPanel
+                open={chatOpen}
+                onClose={() => setChatOpen(false)}
                 messages={messages}
                 currentUserId={user?.id}
                 connectionStatus={socket.status}
@@ -423,6 +426,8 @@ export function Call() {
         )}
       </main>
       <CallControls
+        chatOpen={chatOpen}
+        onChatToggle={() => setChatOpen((open) => !open)}
         onEnd={() => dialog.current?.showModal()}
         onLanguageChange={(patch) => void updateLanguages(patch)}
         onMuteChange={async (muted) => {

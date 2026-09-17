@@ -35,6 +35,8 @@ export async function installMediaMocks(
       configurable: true,
       value: [] as number[],
     });
+    const playback = { starts: [] as number[], stops: 0 };
+    Object.defineProperty(window, "__testPlayback", { configurable: true, value: playback });
     Object.defineProperty(navigator, "mediaDevices", {
       configurable: true,
       value: {
@@ -77,8 +79,8 @@ export async function installMediaMocks(
     class FakeBufferSource extends FakeAudioNode {
       buffer: unknown;
       onended: (() => void) | null = null;
-      start() {}
-      stop() { this.onended?.(); }
+      start(when: number) { playback.starts.push(when); }
+      stop() { playback.stops += 1; this.onended?.(); }
     }
     class FakeAudioContext {
       state: AudioContextState = "running";

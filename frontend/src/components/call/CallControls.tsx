@@ -6,19 +6,25 @@ import {
   Volume2,
   VolumeX,
   Languages,
+  MessageSquare,
   X,
 } from "lucide-react";
 import { useDemo } from "../../contexts/DemoContext";
 import { LanguageSelect } from "../ui/LanguageSelect";
 import { StatusBadge } from "../ui/StatusBadge";
 import type { LanguageCode } from "../../types/demo";
+import { languages } from "../../data/mocks";
 
 export function CallControls({
   onEnd,
   onLanguageChange,
   onMuteChange,
+  chatOpen,
+  onChatToggle,
 }: {
   onEnd: () => void;
+  chatOpen: boolean;
+  onChatToggle: () => void;
   onMuteChange?: (muted: boolean) => boolean | Promise<boolean>;
   onLanguageChange?: (patch: {
     spoken?: LanguageCode;
@@ -53,7 +59,7 @@ export function CallControls({
             >
               {settings.muted ? <MicOff size={21} /> : <Mic size={21} />}
             </button>
-            <span>microfone</span>
+            <span>Eu falo · {settings.spoken.slice(0, 2)}</span>
           </div>
           <div className="control-item volume-control">
             <button
@@ -87,6 +93,7 @@ export function CallControls({
                 updateSettings({ volume: Number(event.target.value) })
               }
             />
+            <span>Eu ouço · {settings.heard.slice(0, 2)}</span>
           </div>
           <div className="control-item">
             <button
@@ -100,8 +107,15 @@ export function CallControls({
               <Languages size={22} />
             </button>
             <span>
-              {settings.spoken.slice(0, 2)} → {settings.heard.slice(0, 2)}
+              idiomas
             </span>
+          </div>
+          <div className="control-item">
+            <button className="icon-button control-button" title="Abrir chat" aria-label="Abrir chat"
+              aria-expanded={chatOpen} aria-controls="call-chat" onClick={onChatToggle}>
+              <MessageSquare size={21} />
+            </button>
+            <span>chat</span>
           </div>
           <div className="control-separator" />
           <div className="control-item">
@@ -158,13 +172,14 @@ export function CallControls({
             }}
           />
           <LanguageSelect
-            label="quero ouvir"
+            label="Ouço a outra pessoa em"
             value={settings.heard}
             onChange={(heard) => {
               updateSettings({ heard });
               onLanguageChange?.({ heard });
             }}
           />
+          <p className="muted">Você fala em {languages.find((language) => language.code === settings.spoken)?.name ?? settings.spoken} e ouve a outra pessoa em {languages.find((language) => language.code === settings.heard)?.name ?? settings.heard}. A tradução é automática quando necessária.</p>
         </section>
       )}
     </div>

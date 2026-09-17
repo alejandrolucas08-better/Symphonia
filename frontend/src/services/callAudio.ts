@@ -33,7 +33,13 @@ export function microphoneErrorState(error: unknown): CallAudioState {
 
 export async function requestMicrophone(deviceId: string): Promise<MediaStream> {
   return navigator.mediaDevices.getUserMedia({
-    audio: deviceId ? { deviceId: { exact: deviceId } } : true,
+    audio: {
+      ...(deviceId ? { deviceId: { exact: deviceId } } : {}),
+      channelCount: 1,
+      echoCancellation: true,
+      noiseSuppression: true,
+      autoGainControl: true,
+    },
     video: false,
   });
 }
@@ -151,8 +157,10 @@ export class CallAudioEngine {
     if (!context || !gain || context.state !== "running") return;
     if (discontinuity) this.flushPlayback();
     const now = context.currentTime;
-    if (!this.nextPlaybackTime || this.nextPlaybackTime < now || this.nextPlaybackTime - now > 0.25) {
-      this.flushPlayback();
+    // Generated speech arrives in bursts. A 250 ms cap cuts off ordinary
+    // phrases repeatedly; only discard an exceptionally stale backlog.
+    if (this.nextPlaybackTime - now > 30) this.flushPlayback();
+    if (!this.nextPlaybackTime || this.nextPlaybackTime < now) {
       this.nextPlaybackTime = now + 0.06;
     }
     const buffer = context.createBuffer(1, samples.length, sampleRate);

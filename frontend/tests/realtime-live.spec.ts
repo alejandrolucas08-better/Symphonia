@@ -81,6 +81,8 @@ test("two real sessions exchange call events", async ({ browser, request }) => {
   await expect.poll(async () => (await diagnostics(host))?.incomingFrames ?? 0).toBeGreaterThan(0);
   await expect.poll(async () => (await diagnostics(guest))?.incomingFrames ?? 0).toBeGreaterThan(0);
 
+  await host.getByRole("button", { name: "Abrir chat" }).click();
+  await guest.getByRole("button", { name: "Abrir chat" }).click();
   await host.getByLabel("Mensagem", { exact: true }).fill("Olá da Ana");
   await host.getByRole("button", { name: "Enviar mensagem" }).click();
   await expect(host.getByRole("log")).toContainText("Olá da Ana");
@@ -90,6 +92,8 @@ test("two real sessions exchange call events", async ({ browser, request }) => {
   await guest.getByRole("button", { name: "Enviar mensagem" }).click();
   await expect(host.getByRole("log")).toContainText("Olá da Bia");
   await expect(guest.getByRole("log")).toContainText("Olá da Bia");
+  await host.getByRole("button", { name: "Fechar chat" }).click();
+  await guest.getByRole("button", { name: "Fechar chat" }).click();
 
   await host
     .getByRole("button", { name: "Desativar microfone", exact: true })

@@ -133,16 +133,18 @@ test("registration validation, create call, preferences, chat and end", async ({
     .click();
   await expect(page.getByLabel("Volume", { exact: true })).toHaveValue("0");
   await page.getByRole("button", { name: "Configurar idiomas" }).click();
-  await expect(page.getByLabel("quero ouvir")).toHaveValue("ES-ES");
-  await page.getByLabel("quero ouvir").selectOption("FR-FR");
+  await expect(page.getByLabel("Ouço a outra pessoa em")).toHaveValue("ES-ES");
+  await page.getByLabel("Ouço a outra pessoa em").selectOption("FR-FR");
   await expect(page.locator(".translated-text")).toHaveText(
     "Comment avance le projet ?",
   );
   await page.getByRole("button", { name: "Fechar idiomas" }).click();
+  await page.getByRole("button", { name: "Abrir chat" }).click();
   await page.getByLabel("Mensagem", { exact: true }).fill("Até a próxima!");
   await page.getByRole("button", { name: "Enviar mensagem" }).click();
   await expect(page.getByRole("log")).toContainText("Até a próxima!");
   await expect(page.getByLabel("Mensagem", { exact: true })).toHaveValue("");
+  await page.getByRole("button", { name: "Fechar chat" }).click();
   await page
     .getByRole("button", { name: "Encerrar chamada", exact: true })
     .click();
@@ -411,6 +413,7 @@ test("call socket ignores malformed events and reconnects after an abnormal clos
   ]);
 
   callSocketMock.sendRaw("not-json");
+  await page.getByRole("button", { name: "Abrir chat" }).click();
   callSocketMock.sendRaw(
     JSON.stringify({ version: 1, type: CALL_EVENT.MESSAGE, data: {} }),
   );
@@ -467,6 +470,52 @@ test("direct call access requires joining first", async ({ page }) => {
   await expect(
     page.getByRole("button", { name: "Entrar na chamada" }),
   ).toBeVisible();
+});
+
+test("translated speech bursts play continuously and interruption clears playback", async ({ page }) => {
+  await page.goto("/call/demo-room");
+  await expect(page.getByText("conectado").first()).toBeVisible();
+  for (let index = 0; index < 20; index += 1) {
+    callSocketMock.send(CALL_EVENT.TRANSLATED_AUDIO, {
+      user_id: 2, mime_type: "audio/pcm;rate=24000",
+      data: Buffer.alloc(4800).toString("base64"),
+    });
+  }
+  const playback = () => page.evaluate(() => (window as unknown as {
+    __testPlayback: { starts: number[]; stops: number };
+  }).__testPlayback);
+  await expect.poll(async () => (await playback()).starts.length).toBe(20);
+  const result = await playback();
+  expect(result.stops).toBe(0);
+  for (let index = 1; index < result.starts.length; index += 1)
+    expect(result.starts[index] - result.starts[index - 1]).toBeCloseTo(0.1);
+  callSocketMock.send(CALL_EVENT.TRANSLATION_INTERRUPTED, { user_id: 2 });
+  await expect.poll(async () => (await playback()).stops).toBe(20);
+});
+
+test("chat drawer scrolls independently, keeps the composer visible and preserves drafts", async ({ page }) => {
+  await page.goto("/call/demo-room");
+  await page.getByRole("button", { name: "Abrir chat" }).click();
+  for (let index = 0; index < 40; index += 1) {
+    callSocketMock.send(CALL_EVENT.MESSAGE, {
+      id: `scroll-${index}`, user_id: 2, name: "Mateus", language: "EN-US",
+      text: `Mensagem longa de teste ${index} para verificar a rolagem do painel lateral.`,
+      sent_at: "2026-01-01T00:00:00Z",
+    });
+  }
+  const log = page.getByRole("log");
+  await expect(log).toContainText("Mensagem longa de teste 39");
+  expect(await log.evaluate((element) => element.scrollHeight > element.clientHeight)).toBe(true);
+  const input = page.getByLabel("Mensagem", { exact: true });
+  await expect(input).toBeInViewport();
+  await input.fill("Rascunho preservado");
+  await page.keyboard.press("Escape");
+  await expect(page.getByRole("button", { name: "Abrir chat" })).toBeFocused();
+  await page.getByRole("button", { name: "Abrir chat" }).click();
+  await expect(input).toHaveValue("Rascunho preservado");
+  await input.press("Enter");
+  await expect(log).toContainText("Rascunho preservado");
+  await expect(input).toHaveValue("");
 });
 
 test("audio codec writes and validates the fixed binary frame", async ({ page }) => {

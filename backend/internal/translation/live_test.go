@@ -206,6 +206,14 @@ func TestNewGeminiServiceRequiresKey(t *testing.T) {
 }
 
 func TestGeminiSessionAgainstFakeServer(t *testing.T) {
+	for _, frameType := range []coderws.MessageType{coderws.MessageText, coderws.MessageBinary} {
+		t.Run(fmt.Sprint(frameType), func(t *testing.T) {
+			testGeminiSessionAgainstFakeServer(t, frameType)
+		})
+	}
+}
+
+func testGeminiSessionAgainstFakeServer(t *testing.T, frameType coderws.MessageType) {
 	var (
 		mu           sync.Mutex
 		gotAPIKey    string
@@ -275,7 +283,7 @@ func TestGeminiSessionAgainstFakeServer(t *testing.T) {
 				gotEcho = generationConfig.TranslationConfig.EchoTargetLanguage
 				mu.Unlock()
 				writeCtx, writeCancel := context.WithTimeout(context.Background(), 2*time.Second)
-				_ = conn.Write(writeCtx, coderws.MessageText, []byte(`{"setupComplete":{}}`))
+				_ = conn.Write(writeCtx, frameType, []byte(`{"setupComplete":{}}`))
 				writeCancel()
 			case message.RealtimeInput.Audio.Data != "":
 				mu.Lock()
@@ -287,10 +295,10 @@ func TestGeminiSessionAgainstFakeServer(t *testing.T) {
 				mu.Unlock()
 				writeCtx, writeCancel := context.WithTimeout(context.Background(), 2*time.Second)
 				defer writeCancel()
-				_ = conn.Write(writeCtx, coderws.MessageText, []byte(
+				_ = conn.Write(writeCtx, frameType, []byte(
 					`{"serverContent":{"inputTranscription":{"text":"Olá, seja bem-vindo.","languageCode":"pt-BR"},"outputTranscription":{"text":"Hello, welcome.","languageCode":"en"}}}`))
 				translated := base64.StdEncoding.EncodeToString(make([]byte, 480))
-				_ = conn.Write(writeCtx, coderws.MessageText, []byte(
+				_ = conn.Write(writeCtx, frameType, []byte(
 					`{"serverContent":{"modelTurn":{"parts":[{"inlineData":{"mimeType":"audio/pcm;rate=24000","data":"`+translated+`"}}]},"turnComplete":true}}`))
 			}
 		}

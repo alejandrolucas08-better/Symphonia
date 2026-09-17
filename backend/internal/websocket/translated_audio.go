@@ -87,6 +87,11 @@ func (h *Hub) sendTranslatedFrames(session *translationSession, flush bool) {
 			h.dropPeer(session.code, peer)
 			return
 		}
-		p.next = time.Now().Add(20 * time.Millisecond)
+		// Keep a stable sample clock instead of adding write latency to every
+		// 20 ms packet, which gradually starves the listener's playback buffer.
+		if p.next.IsZero() || time.Since(p.next) > 100*time.Millisecond {
+			p.next = time.Now()
+		}
+		p.next = p.next.Add(20 * time.Millisecond)
 	}
 }
