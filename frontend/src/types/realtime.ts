@@ -9,6 +9,10 @@ export const CALL_EVENT = {
   MUTE_STATE: "mute_state",
   LANGUAGE_CHANGED: "language_changed",
   CALL_ENDED: "call_ended",
+  INPUT_TRANSCRIPTION: "input_transcription",
+  OUTPUT_TRANSCRIPTION: "output_transcription",
+  TRANSLATED_AUDIO: "translated_audio",
+  TRANSLATION_INTERRUPTED: "translation_interrupted",
   ERROR: "error",
 } as const;
 
@@ -58,6 +62,24 @@ type ServerEventData =
   | {
       type: typeof CALL_EVENT.CALL_ENDED;
       data: { ended_by_user_id: number };
+    }
+  | {
+      type:
+        | typeof CALL_EVENT.INPUT_TRANSCRIPTION
+        | typeof CALL_EVENT.OUTPUT_TRANSCRIPTION;
+      data: { user_id: number; text: string; language: LanguageCode };
+    }
+  | {
+      type: typeof CALL_EVENT.TRANSLATED_AUDIO;
+      data: {
+        user_id: number;
+        mime_type: "audio/pcm;rate=24000";
+        data: string;
+      };
+    }
+  | {
+      type: typeof CALL_EVENT.TRANSLATION_INTERRUPTED;
+      data: { user_id: number };
     }
   | {
       type: typeof CALL_EVENT.ERROR;

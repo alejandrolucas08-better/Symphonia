@@ -52,6 +52,7 @@ Os novos eventos usam o envelope JSON existente (`version`, `type`, `data`,
 | `input_transcription` | `user_id` do emissor, `text`, `language` de origem |
 | `output_transcription` | `user_id` do emissor, `text`, `language` de destino |
 | `translated_audio` | `user_id` do emissor, `mime_type: "audio/pcm;rate=24000"`, `data` em base64 |
+| `translation_interrupted` | `user_id` do emissor; o destinatário deve limpar o áudio enfileirado |
 
 Esses eventos são exclusivos do servidor. O áudio traduzido é PCM16 LE mono a
 24 kHz, sem cabeçalho WAV e sem o cabeçalho binário Symphonia. O consumidor deve
@@ -60,25 +61,26 @@ decodificar base64 e reproduzir os samples a 24 kHz.
 Mudanças nos idiomas relevantes invalidam sessões; a próxima entrada de áudio
 abre uma nova. Saída/desconexão de participante e encerramento da chamada fecham
 as sessões. Sessões encerradas pelo provider são removidas. A abertura aguarda
-setup por até 10 segundos; o leitor Gemini usa timeout de 30 segundos sem mensagem.
+setup por até 10 segundos; depois disso a conexão permanece aberta durante pausas.
 
 ## Limitações atuais
 
 - A implementação do backend foi validada com servidor WebSocket Gemini simulado.
   Isso não confirma disponibilidade do modelo, permissão da chave, qualidade ou
   latência no serviço real. O modelo é preview.
-- O frontend ainda precisa consumir os três eventos acima, apresentar transcrições
-  incrementais e reproduzir PCM a 24 kHz. Não há validação ponta a ponta no navegador.
+- O frontend consome transcrições e PCM a 24 kHz. O teste de navegador valida o
+  contrato e a taxa de reprodução com WebSocket simulado; a chave e o serviço
+  Gemini reais ainda precisam da verificação manual descrita no README.
 - O fluxo do hub considera chamadas de dois participantes e traduz áudio; mensagens
   de chat continuam no fluxo existente, sem tradução.
 - Em falha de abertura ou envio ao provider, o hub registra o erro e retransmite
   o frame original. Não há aviso específico ao frontend sobre essa degradação.
 - Não há retomada de sessão, backoff de reconexão ou retransmissão de áudio perdido.
   Uma nova sessão pode ser aberta no próximo frame após falha ou encerramento.
-- Eventos de interrupção e fim de turno não são repassados ao frontend. Não há
-  cancelamento da fila de reprodução do destinatário por interrupção.
-- O áudio da chamada é enviado ao provider em frames recebidos; a API de tradução
-  de uma requisição completa divide a entrada em blocos de 3200 bytes e sinaliza
+- Interrupções limpam a fila de reprodução traduzida. Eventos de fim de turno não
+  são repassados ao frontend.
+- O áudio da chamada é agregado em blocos de 3200 bytes (100 ms); a API de tradução
+  de uma requisição completa também divide a entrada nesses blocos e sinaliza
   `audioStreamEnd` antes de aguardar a resposta.
 
 ## Verificação local

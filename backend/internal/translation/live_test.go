@@ -8,6 +8,7 @@ import (
 	"fmt"
 	"net/http"
 	"net/http/httptest"
+	"os"
 	"strings"
 	"sync"
 	"testing"
@@ -208,6 +209,7 @@ func TestGeminiSessionAgainstFakeServer(t *testing.T) {
 	var (
 		mu           sync.Mutex
 		gotAPIKey    string
+		gotQueryKey  string
 		gotModel     string
 		gotTarget    string
 		gotEcho      bool
@@ -225,6 +227,7 @@ func TestGeminiSessionAgainstFakeServer(t *testing.T) {
 
 		mu.Lock()
 		gotAPIKey = r.Header.Get("x-goog-api-key")
+		gotQueryKey = r.URL.Query().Get("key")
 		mu.Unlock()
 
 		readCtx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
@@ -322,12 +325,16 @@ func TestGeminiSessionAgainstFakeServer(t *testing.T) {
 
 	mu.Lock()
 	gotAPIKeyCopy := gotAPIKey
+	gotQueryKeyCopy := gotQueryKey
 	gotModelCopy := gotModel
 	gotTargetCopy := gotTarget
 	gotEchoCopy := gotEcho
 	mu.Unlock()
 	if gotAPIKeyCopy != "test-only-key" {
 		t.Errorf("api key header = %q, want test-only-key", gotAPIKeyCopy)
+	}
+	if gotQueryKeyCopy != "test-only-key" {
+		t.Errorf("api key query = %q, want test-only-key", gotQueryKeyCopy)
 	}
 	if !strings.Contains(gotModelCopy, DefaultTranslationModel) {
 		t.Errorf("setup model = %q, want to contain %q", gotModelCopy, DefaultTranslationModel)
@@ -339,8 +346,10 @@ func TestGeminiSessionAgainstFakeServer(t *testing.T) {
 		t.Error("echoTargetLanguage = false, want true")
 	}
 
-	if err := session.SendAudio(ctx, AudioInput{Format: DefaultAudioFormat, Data: make([]byte, 3200)}); err != nil {
-		t.Fatalf("SendAudio: %v", err)
+	for range 5 {
+		if err := session.SendAudio(ctx, AudioInput{Format: DefaultAudioFormat, Data: make([]byte, 640)}); err != nil {
+			t.Fatalf("SendAudio: %v", err)
+		}
 	}
 	if live, ok := session.(*geminiLiveSession); ok {
 		if err := live.signalEnd(ctx); err != nil {
@@ -373,5 +382,52 @@ func TestGeminiSessionAgainstFakeServer(t *testing.T) {
 	}
 	if serverErrCopy != nil {
 		t.Errorf("server error: %v", serverErrCopy)
+	}
+}
+
+func TestGeminiLiveIntegration(t *testing.T) {
+	if os.Getenv("GEMINI_LIVE_INTEGRATION") != "1" {
+		t.Skip("set GEMINI_LIVE_INTEGRATION=1 to call the real Gemini Live API")
+	}
+	apiKey := os.Getenv("GEMINI_API_KEY")
+	if apiKey == "" {
+		t.Fatal("GEMINI_API_KEY is required for the live integration test")
+	}
+	service, err := NewGeminiService(Config{
+		Provider:         ProviderGemini,
+		GeminiAPIKey:     apiKey,
+		TranslationModel: os.Getenv("TRANSLATION_MODEL"),
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	ctx, cancel := context.WithTimeout(context.Background(), 20*time.Second)
+	defer cancel()
+	session, err := service.OpenLiveSession(ctx, OpenRequest{
+		ID:             "live-integration",
+		SourceLanguage: LanguagePortuguese,
+		TargetLanguage: LanguageEnglish,
+		EchoTarget:     true,
+	})
+	if err != nil {
+		t.Fatalf("connect to Gemini Live: %v", err)
+	}
+	if err := session.SendAudio(ctx, AudioInput{Format: DefaultAudioFormat, Data: make([]byte, geminiChunkBytes)}); err != nil {
+		t.Fatalf("send audio to Gemini Live: %v", err)
+	}
+	if err := session.Close(ctx); err != nil {
+		t.Fatalf("close Gemini Live session: %v", err)
+	}
+}
+
+func TestGeminiSessionRejectsUnsupportedAudio(t *testing.T) {
+	session := &geminiLiveSession{done: make(chan struct{})}
+	for _, audio := range []AudioInput{
+		{Format: AudioFormat{Codec: AudioCodecPCM16LE, SampleRate: 44100, Channels: 1, BytesPerSample: 2}, Data: make([]byte, 640)},
+		{Format: DefaultAudioFormat, Data: []byte{1}},
+	} {
+		if err := session.SendAudio(context.Background(), audio); !errors.Is(err, ErrInvalidAudioFormat) {
+			t.Errorf("SendAudio(%+v) = %v, want ErrInvalidAudioFormat", audio.Format, err)
+		}
 	}
 }

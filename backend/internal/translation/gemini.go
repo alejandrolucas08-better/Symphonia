@@ -7,6 +7,7 @@ import (
 	"errors"
 	"fmt"
 	"net/http"
+	"net/url"
 	"strings"
 	"sync"
 	"time"
@@ -184,7 +185,11 @@ func (g *GeminiTranslationService) OpenLiveSession(ctx context.Context, request 
 
 	dialCtx, cancel := context.WithTimeout(ctx, geminiSetupTimeout)
 	defer cancel()
-	conn, response, err := coderws.Dial(dialCtx, g.endpoint, &coderws.DialOptions{
+	endpoint, err := geminiEndpoint(g.endpoint, g.apiKey)
+	if err != nil {
+		return nil, fmt.Errorf("%w: endpoint: %v", ErrGeminiSetup, err)
+	}
+	conn, response, err := coderws.Dial(dialCtx, endpoint, &coderws.DialOptions{
 		HTTPHeader: http.Header{"x-goog-api-key": []string{g.apiKey}},
 	})
 	if err != nil {
@@ -216,6 +221,17 @@ func (g *GeminiTranslationService) OpenLiveSession(ctx context.Context, request 
 		return nil, err
 	}
 	return session, nil
+}
+
+func geminiEndpoint(endpoint, apiKey string) (string, error) {
+	value, err := url.Parse(endpoint)
+	if err != nil {
+		return "", err
+	}
+	query := value.Query()
+	query.Set("key", apiKey)
+	value.RawQuery = query.Encode()
+	return value.String(), nil
 }
 
 // setupMessage matches the official Live Translate WebSocket shape, where the
@@ -330,29 +346,43 @@ type geminiLiveSession struct {
 	writeMu   sync.Mutex
 	readyOnce sync.Once
 	closeOnce sync.Once
+	pending   []byte
+	ended     bool
 }
 
 func (s *geminiLiveSession) Events() <-chan LiveEvent { return s.out }
 
 func (s *geminiLiveSession) SendAudio(ctx context.Context, audio AudioInput) error {
-	select {
-	case <-s.done:
-		return ErrSessionClosed
-	default:
-	}
 	if len(audio.Data) == 0 {
 		return ErrEmptyAudio
 	}
+	if audio.Format != DefaultAudioFormat || len(audio.Data)%DefaultAudioFormat.BytesPerSample != 0 {
+		return fmt.Errorf("%w: Gemini requires mono PCM16 LE at 16000 Hz", ErrInvalidAudioFormat)
+	}
+	s.writeMu.Lock()
+	defer s.writeMu.Unlock()
+	if s.ended || s.isDone() {
+		return ErrSessionClosed
+	}
+	s.pending = append(s.pending, audio.Data...)
+	for len(s.pending) >= geminiChunkBytes {
+		if err := s.writeAudio(ctx, s.pending[:geminiChunkBytes]); err != nil {
+			return err
+		}
+		s.pending = s.pending[geminiChunkBytes:]
+	}
+	return nil
+}
+
+func (s *geminiLiveSession) writeAudio(ctx context.Context, data []byte) error {
 	message := map[string]any{
 		"realtimeInput": map[string]any{
 			"audio": map[string]string{
-				"data":     base64.StdEncoding.EncodeToString(audio.Data),
+				"data":     base64.StdEncoding.EncodeToString(data),
 				"mimeType": geminiAudioMimeRate,
 			},
 		},
 	}
-	s.writeMu.Lock()
-	defer s.writeMu.Unlock()
 	if err := s.writeJSON(ctx, message); err != nil {
 		return fmt.Errorf("%w: send audio: %v", ErrGeminiStream, err)
 	}
@@ -364,6 +394,23 @@ func (s *geminiLiveSession) SendAudio(ctx context.Context, audio AudioInput) err
 func (s *geminiLiveSession) signalEnd(ctx context.Context) error {
 	s.writeMu.Lock()
 	defer s.writeMu.Unlock()
+	return s.signalEndLocked(ctx)
+}
+
+func (s *geminiLiveSession) signalEndLocked(ctx context.Context) error {
+	if s.ended {
+		return nil
+	}
+	if s.isDone() {
+		return ErrSessionClosed
+	}
+	if len(s.pending) > 0 {
+		if err := s.writeAudio(ctx, s.pending); err != nil {
+			return err
+		}
+		s.pending = nil
+	}
+	s.ended = true
 	return s.writeJSON(ctx, map[string]any{"realtimeInput": map[string]any{"audioStreamEnd": true}})
 }
 
@@ -371,8 +418,10 @@ func (s *geminiLiveSession) Close(ctx context.Context) error {
 	s.closeOnce.Do(func() {
 		ctx, cancel := context.WithTimeout(ctx, 3*time.Second)
 		defer cancel()
-		_ = s.writeJSON(ctx, map[string]any{"realtimeInput": map[string]any{"audioStreamEnd": true}})
+		s.writeMu.Lock()
+		_ = s.signalEndLocked(ctx)
 		close(s.done)
+		s.writeMu.Unlock()
 		_ = s.conn.Close(coderws.StatusNormalClosure, "session closed")
 	})
 	return nil
@@ -438,9 +487,7 @@ func (s *geminiLiveSession) isDone() bool {
 }
 
 func (s *geminiLiveSession) readMessage() error {
-	ctx, cancel := context.WithTimeout(context.Background(), geminiMaxSessionWait)
-	defer cancel()
-	messageType, payload, err := s.conn.Read(ctx)
+	messageType, payload, err := s.conn.Read(context.Background())
 	if err != nil {
 		if s.isDone() || isNormalClose(err) {
 			return ErrSessionClosed
@@ -477,22 +524,33 @@ func (s *geminiLiveSession) readMessage() error {
 	content := message.ServerContent
 
 	if content.InputTranscription != nil && content.InputTranscription.Text != "" {
+		sourceLanguage := s.request.SourceLanguage
+		if detected := languageFromGeminiCode(content.InputTranscription.LanguageCode); detected.Valid() {
+			sourceLanguage = detected
+		}
 		s.emit(LiveEvent{
 			Kind:           EventInputTranscription,
 			SourceText:     content.InputTranscription.Text,
-			SourceLanguage: s.request.SourceLanguage,
+			SourceLanguage: sourceLanguage,
 		})
 	}
 	if content.OutputTranscription != nil && content.OutputTranscription.Text != "" {
+		outputLanguage := s.request.TargetLanguage
+		if detected := languageFromGeminiCode(content.OutputTranscription.LanguageCode); detected.Valid() {
+			outputLanguage = detected
+		}
 		s.emit(LiveEvent{
 			Kind:           EventOutputTranscription,
 			OutputText:     content.OutputTranscription.Text,
-			OutputLanguage: s.request.TargetLanguage,
+			OutputLanguage: outputLanguage,
 		})
 	}
 	if content.ModelTurn != nil {
 		for _, part := range content.ModelTurn.Parts {
 			if part.InlineData == nil {
+				continue
+			}
+			if !strings.EqualFold(strings.TrimSpace(part.InlineData.MimeType), geminiOutputAudioMime) {
 				continue
 			}
 			data, err := base64.StdEncoding.DecodeString(part.InlineData.Data)

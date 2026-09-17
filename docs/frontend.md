@@ -2,7 +2,7 @@
 
 ## Scope
 
-This stage implements the visual experience only. There are no backend requests, real authentication, real calls, microphone access, camera/video elements, speech recognition, translation services, or persistence. Vite's development WebSocket is only used for hot module replacement.
+The application now uses backend authentication and calls, captures PCM16 microphone audio through an AudioWorklet, exchanges call events and audio over an authenticated WebSocket, displays provider transcriptions, and plays translated PCM at 24 kHz. The public landing-page demonstration remains local and uses sample content.
 
 All six routes can be loaded directly. Login uses fictitious values and opens the default Alejandro profile. Registration validates matching passwords and uses the supplied display name for the current in-memory session. Passwords are never saved or sent. Refreshing resets the session.
 

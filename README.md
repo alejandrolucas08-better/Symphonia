@@ -4,7 +4,7 @@ Symphonia is a web application for real-time communication between two people wh
 
 The MVP goal is an audio call for up to two participants, with live speech transcription and translation.
 
-The project includes backend authentication and calls plus an authenticated WebSocket for transient call events and best-effort PCM audio relay between two participants. Browser capture and playback support is in active development; Gemini Live Translate is not integrated.
+The project includes backend authentication and calls, browser microphone capture and playback, and an authenticated WebSocket that streams PCM audio through Gemini Live Translate when the participants use different languages.
 
 ## Stack
 
@@ -46,6 +46,44 @@ Copy `.env.example` to `.env` and adjust values when needed.
 cp .env.example .env
 ```
 
+### Manual Gemini setup
+
+The following steps cannot be automated by the repository:
+
+1. Create or select a Google AI project and obtain an API key that has access to
+   the Gemini API and the preview model `gemini-3.5-live-translate-preview`.
+   Model availability, billing and regional restrictions are controlled by Google.
+2. Keep the key only in the local `.env` file. Never place it in source code or
+   commit it. Configure:
+
+   ```dotenv
+   TRANSLATION_PROVIDER=gemini
+   GEMINI_API_KEY=your-real-key
+   TRANSLATION_MODEL=gemini-3.5-live-translate-preview
+   ```
+
+3. Start all services with `docker compose up --build`, or export the variables
+   in the shell that starts `go run ./cmd/server`. A successful backend startup
+   prints `translation provider: gemini`.
+4. Optionally validate the key, model access and Live WebSocket handshake directly
+   from `backend/`. This test contacts Google and is skipped during normal tests:
+
+   ```bash
+   GEMINI_LIVE_INTEGRATION=1 \
+   GEMINI_API_KEY="your-real-key" \
+   go test ./internal/translation -run TestGeminiLiveIntegration -v
+   ```
+
+5. Open the same call as two different users, choose different spoken/heard
+   languages, allow microphone access and speak. The listener receives 24 kHz
+   translated PCM audio; the call screen replaces its demo text when real input
+   and output transcription events arrive.
+
+The backend sends the API key directly to Google over TLS; it is never exposed to
+the browser. If Google rejects setup, inspect the backend log for `gemini session
+setup failed`. Typical manual causes are an invalid/restricted key, unavailable
+preview model, disabled billing/API, or an unsupported region.
+
 ## Running the Frontend
 
 ```bash
@@ -76,7 +114,8 @@ by the host firewall, and the Wi-Fi network permits communication between device
 Microphone access from another device requires HTTPS with a certificate trusted
 by that device; browsers generally block microphone capture on plain HTTP LAN IPs.
 
-The prototype works independently of the backend, Docker, and environment variables. Use fictitious form values. Reloading the page resets the demo profile, settings, and chat.
+The public landing-page demonstration uses local sample phrases. Authentication,
+calls, microphone streaming and Gemini translation require the backend and database.
 
 Routes: `/`, `/login`, `/register`, `/home`, `/call/:id/setup`, and `/call/:id`.
 

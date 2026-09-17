@@ -10,7 +10,30 @@ import {
   microphoneErrorState,
   type CallAudioState,
 } from "../services/callAudio";
-import type { CallSocketStatus } from "../types/realtime";
+import {
+  CALL_EVENT,
+  type CallSocketStatus,
+  type ServerCallEnvelope,
+} from "../types/realtime";
+
+const TRANSLATED_AUDIO_SAMPLE_RATE = 24000;
+
+function decodePCM16(base64: string): Int16Array | null {
+  try {
+    const binary = window.atob(base64);
+    if (binary.length === 0 || binary.length % 2 !== 0) return null;
+    const samples = new Int16Array(binary.length / 2);
+    for (let index = 0; index < samples.length; index += 1) {
+      const low = binary.charCodeAt(index * 2);
+      const high = binary.charCodeAt(index * 2 + 1);
+      const value = low | (high << 8);
+      samples[index] = value >= 0x8000 ? value - 0x10000 : value;
+    }
+    return samples;
+  } catch {
+    return null;
+  }
+}
 
 type Diagnostics = {
   outgoingFrames: number;
@@ -35,6 +58,7 @@ export function useCallAudio({
   socketStatus,
   sendBinary,
   subscribeBinary,
+  subscribeEvent,
 }: {
   enabled: boolean;
   callCode?: string;
@@ -46,6 +70,7 @@ export function useCallAudio({
   socketStatus: CallSocketStatus;
   sendBinary: (payload: ArrayBuffer) => boolean;
   subscribeBinary: (listener: (payload: ArrayBuffer) => void) => () => void;
+  subscribeEvent: (listener: (event: ServerCallEnvelope) => void) => () => void;
 }) {
   const [state, setState] = useState<CallAudioState>("idle");
   const [error, setError] = useState("");
@@ -207,6 +232,29 @@ export function useCallAudio({
         engineRef.current?.play(frame.samples, frame.discontinuity);
       }),
     [subscribeBinary],
+  );
+
+  useEffect(
+    () =>
+      subscribeEvent((event) => {
+        if (
+          event.type === CALL_EVENT.TRANSLATION_INTERRUPTED ||
+          event.type === CALL_EVENT.LANGUAGE_CHANGED
+        ) {
+          engineRef.current?.flushPlayback();
+          return;
+        }
+        if (
+          statusRef.current !== "joined" ||
+          event.type !== CALL_EVENT.TRANSLATED_AUDIO
+        )
+          return;
+        const samples = decodePCM16(event.data.data);
+        if (!samples) return;
+        if (diagnosticsRef.current) diagnosticsRef.current.incomingFrames += 1;
+        engineRef.current?.play(samples, false, TRANSLATED_AUDIO_SAMPLE_RATE);
+      }),
+    [subscribeEvent],
   );
 
   const setMutedImmediately = useCallback(

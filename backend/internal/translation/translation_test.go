@@ -150,6 +150,11 @@ func TestLoadConfigDefaultsToMock(t *testing.T) {
 	if config := LoadConfig(); config.Provider != ProviderMock {
 		t.Errorf("Provider = %q, want %q", config.Provider, ProviderMock)
 	}
+
+	t.Setenv("TRANSLATION_PROVIDER", "typo")
+	if config := LoadConfig(); config.Provider != "typo" {
+		t.Errorf("Provider = %q, want typo", config.Provider)
+	}
 }
 
 func validRequest() Request {

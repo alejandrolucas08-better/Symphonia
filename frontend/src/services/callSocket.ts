@@ -121,6 +121,26 @@ function parseEnvelope(raw: unknown): ServerCallEnvelope | null {
     case CALL_EVENT.CALL_ENDED:
       if (typeof data.ended_by_user_id !== "number") return null;
       break;
+    case CALL_EVENT.INPUT_TRANSCRIPTION:
+    case CALL_EVENT.OUTPUT_TRANSCRIPTION:
+      if (
+        typeof data.user_id !== "number" ||
+        typeof data.text !== "string" ||
+        !languageCodes.has(data.language as LanguageCode)
+      )
+        return null;
+      break;
+    case CALL_EVENT.TRANSLATED_AUDIO:
+      if (
+        typeof data.user_id !== "number" ||
+        data.mime_type !== "audio/pcm;rate=24000" ||
+        typeof data.data !== "string"
+      )
+        return null;
+      break;
+    case CALL_EVENT.TRANSLATION_INTERRUPTED:
+      if (typeof data.user_id !== "number") return null;
+      break;
     case CALL_EVENT.ERROR:
       if (typeof data.code !== "string" || typeof data.message !== "string")
         return null;

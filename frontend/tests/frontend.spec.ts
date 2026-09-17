@@ -286,6 +286,7 @@ test("narrow layout stays within the viewport", async ({ page }) => {
 test("translation follows the original and speakers alternate", async ({
   page,
 }) => {
+  await page.emulateMedia({ reducedMotion: "no-preference" });
   await page.clock.install();
   await page.goto("/call/demo-room");
   await expect(page.locator(".original-text")).toHaveText(
@@ -303,6 +304,42 @@ test("translation follows the original and speakers alternate", async ({
     "Everything is going well.",
   );
   await expect(page.locator(".speaker .participant-name")).toHaveText("Mateus");
+});
+
+test("Gemini events update transcript and play translated audio at 24 kHz", async ({
+  page,
+}) => {
+  await page.goto("/call/demo-room");
+  await expect(page.locator(".call-audio-status")).toContainText("Áudio ativo");
+  const socketMock = getCallSocketMock(page);
+  socketMock.send(CALL_EVENT.INPUT_TRANSCRIPTION, {
+    user_id: 2,
+    text: "How is the project?",
+    language: "EN-US",
+  });
+  socketMock.send(CALL_EVENT.OUTPUT_TRANSCRIPTION, {
+    user_id: 2,
+    text: "Como está o projeto?",
+    language: "PT-BR",
+  });
+  socketMock.send(CALL_EVENT.TRANSLATED_AUDIO, {
+    user_id: 2,
+    mime_type: "audio/pcm;rate=24000",
+    data: "AACAPw==",
+  });
+
+  await expect(page.locator(".stage-label .demo-tag")).toHaveText("Gemini Live");
+  await expect(page.locator(".original-text")).toHaveText("How is the project?");
+  await expect(page.locator(".translated-text")).toHaveText("Como está o projeto?");
+  await expect
+    .poll(() =>
+      page.evaluate(
+        () =>
+          (window as unknown as { __testPlaybackSampleRates: number[] })
+            .__testPlaybackSampleRates,
+      ),
+    )
+    .toContain(24000);
 });
 
 test("create uses the canonical code returned by the API", async ({ page }) => {

@@ -1,8 +1,7 @@
 // Package translation defines the provider-agnostic translation layer.
 //
 // The application depends on Service, never on a concrete provider.
-// MockService validates the pipeline now; a Gemini-backed implementation
-// will be added later behind the same interface.
+// MockService and GeminiTranslationService implement the same interface.
 package translation
 
 import (

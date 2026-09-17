@@ -31,6 +31,10 @@ export async function installMediaMocks(
       configurable: true,
       value: tracks,
     });
+    Object.defineProperty(window, "__testPlaybackSampleRates", {
+      configurable: true,
+      value: [] as number[],
+    });
     Object.defineProperty(navigator, "mediaDevices", {
       configurable: true,
       value: {
@@ -84,7 +88,9 @@ export async function installMediaMocks(
       createMediaStreamSource() { return new FakeAudioNode(); }
       createGain() { return new FakeGainNode(); }
       createBufferSource() { return new FakeBufferSource(); }
-      createBuffer(_channels: number, length: number) {
+      createBuffer(_channels: number, length: number, sampleRate: number) {
+        (window as unknown as { __testPlaybackSampleRates: number[] })
+          .__testPlaybackSampleRates.push(sampleRate);
         const data = new Float32Array(length);
         return { getChannelData: () => data };
       }

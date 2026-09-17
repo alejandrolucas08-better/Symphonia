@@ -141,7 +141,11 @@ export class CallAudioEngine {
     return this.context.state === "running" ? "active" : "suspended";
   }
 
-  play(samples: Int16Array, discontinuity: boolean): void {
+  play(
+    samples: Int16Array,
+    discontinuity: boolean,
+    sampleRate = AUDIO_SAMPLE_RATE,
+  ): void {
     const context = this.context;
     const gain = this.playbackGain;
     if (!context || !gain || context.state !== "running") return;
@@ -151,7 +155,7 @@ export class CallAudioEngine {
       this.flushPlayback();
       this.nextPlaybackTime = now + 0.06;
     }
-    const buffer = context.createBuffer(1, samples.length, AUDIO_SAMPLE_RATE);
+    const buffer = context.createBuffer(1, samples.length, sampleRate);
     const channel = buffer.getChannelData(0);
     for (let index = 0; index < samples.length; index += 1)
       channel[index] = samples[index] / 32768;
@@ -161,7 +165,7 @@ export class CallAudioEngine {
     source.onended = () => this.playbackSources.delete(source);
     this.playbackSources.add(source);
     source.start(this.nextPlaybackTime);
-    this.nextPlaybackTime += samples.length / AUDIO_SAMPLE_RATE;
+    this.nextPlaybackTime += samples.length / sampleRate;
   }
 
   flushPlayback(): void {

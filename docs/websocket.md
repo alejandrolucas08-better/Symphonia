@@ -128,7 +128,7 @@ The sequence and sample timestamp fields may use the full uint32 range. A frame 
 
 An invalid binary frame is dropped and produces the generic JSON error `invalid_audio_frame`; validation details are intentionally not exposed. The first frame after upgrade must still be the text `join_call` event. Binary data before it produces an error and an unsupported-data close.
 
-Audio relay is bounded and best effort. Slow or failed peer writes are timed out after approximately one second and the failed peer is removed. Frames are not queued for replay, persisted, retransmitted, mixed, or transcoded. The backend does not send these PCM frames to Gemini or any other translation service.
+Audio delivery is bounded and best effort. Slow or failed peer writes are timed out after approximately one second and the failed peer is removed. Frames are not queued for replay or persisted. When the speaker's language already matches the peer's heard language, frames are relayed byte-for-byte. Otherwise the PCM payload is streamed to the configured translation provider and the peer receives `input_transcription`, `output_transcription`, `translated_audio`, and, when applicable, `translation_interrupted` JSON events. See [translation.md](translation.md).
 
 ## Server notifications
 

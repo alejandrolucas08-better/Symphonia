@@ -384,11 +384,33 @@ func (h *Hub) dispatch(session *translationSession, event translation.LiveEvent)
 		})
 	case translation.EventTranslatedAudio:
 		h.deliverTranslatedAudio(session, event)
+	case translation.EventInterrupted:
+		h.deliverTranslationInterrupted(session)
 	case translation.EventSessionError:
 		log.Printf("websocket: translation session error (%s/%d): %v", session.code, session.userID, event.Err)
 		h.dropSession(session)
 	default:
-		// EventTurnComplete and EventInterrupted carry no payload.
+		// EventTurnComplete carries no client payload.
+	}
+}
+
+func (h *Hub) deliverTranslationInterrupted(session *translationSession) {
+	h.mu.Lock()
+	r := h.rooms[session.code]
+	var peer *connection
+	if r != nil && r.sessions[session.userID] == session {
+		for userID, client := range r.connections {
+			if userID != session.userID && client.ready {
+				peer = client
+				break
+			}
+		}
+	}
+	h.mu.Unlock()
+	if peer != nil {
+		_ = peer.send(EventTranslationInterrupted, "", struct {
+			UserID int64 `json:"user_id"`
+		}{UserID: session.userID})
 	}
 }
 

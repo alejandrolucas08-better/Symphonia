@@ -57,10 +57,9 @@ func New(config Config) (Service, error) {
 }
 
 func providerFromEnv(value string) Provider {
-	switch Provider(strings.ToLower(strings.TrimSpace(value))) {
-	case ProviderGemini:
-		return ProviderGemini
-	default:
+	value = strings.ToLower(strings.TrimSpace(value))
+	if value == "" {
 		return ProviderMock
 	}
+	return Provider(value)
 }

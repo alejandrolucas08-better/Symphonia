@@ -10,8 +10,8 @@ import { Button } from "../components/ui/Button";
 import { StatusBadge } from "../components/ui/StatusBadge";
 import { initialsFor } from "../components/ui/Avatar";
 import { useDemo } from "../contexts/DemoContext";
-import { useConversation } from "../hooks/useConversation";
 import { useAuth } from "../hooks/useAuth";
+import { useConversation } from "../hooks/useConversation";
 import { useCallSocket } from "../hooks/useCallSocket";
 import { useCallAudio } from "../hooks/useCallAudio";
 import { languages, phrases } from "../data/mocks";
@@ -37,6 +37,13 @@ export function Call() {
   const [seconds, setSeconds] = useState(0);
   const [messages, setMessages] = useState<RealtimeMessage[]>([]);
   const [muteStates, setMuteStates] = useState<Map<number, boolean>>(new Map());
+  const [liveTranscript, setLiveTranscript] = useState<{
+    userId: number;
+    original: string;
+    translated: string;
+    source: LanguageCode;
+    target: LanguageCode;
+  } | null>(null);
   const dialog = useRef<HTMLDialogElement>(null);
   const refreshCall = useRef<() => void>(() => undefined);
   const navigate = useNavigate();
@@ -91,6 +98,7 @@ export function Call() {
   useEffect(() => {
     setMessages([]);
     setMuteStates(new Map());
+    setLiveTranscript(null);
   }, [id]);
 
   const handleSocketEvent = (event: ServerCallEnvelope) => {
@@ -114,7 +122,10 @@ export function Call() {
       }
       case CALL_EVENT.PARTICIPANT_JOINED:
       case CALL_EVENT.PARTICIPANT_LEFT:
+        refreshCall.current();
+        break;
       case CALL_EVENT.LANGUAGE_CHANGED:
+        setLiveTranscript(null);
         refreshCall.current();
         break;
       case CALL_EVENT.MESSAGE:
@@ -135,6 +146,39 @@ export function Call() {
         break;
       case CALL_EVENT.CALL_ENDED:
         navigate("/home", { replace: true });
+        break;
+      case CALL_EVENT.INPUT_TRANSCRIPTION:
+        setLiveTranscript((current) => ({
+          userId: event.data.user_id,
+          original: event.data.text,
+          translated:
+            current?.userId === event.data.user_id ? current.translated : "",
+          source: event.data.language,
+          target:
+            current?.userId === event.data.user_id
+              ? current.target
+              : (call?.participants.find(
+                    (participant) => participant.user_id !== event.data.user_id,
+                  )?.heard_language ?? settings.heard),
+        }));
+        break;
+      case CALL_EVENT.OUTPUT_TRANSCRIPTION:
+        setLiveTranscript((current) => ({
+          userId: event.data.user_id,
+          original:
+            current?.userId === event.data.user_id ? current.original : "",
+          translated: event.data.text,
+          source:
+            current?.userId === event.data.user_id
+              ? current.source
+              : (call?.participants.find(
+                    (participant) => participant.user_id === event.data.user_id,
+                  )?.spoken_language ?? settings.spoken),
+          target: event.data.language,
+        }));
+        break;
+      case CALL_EVENT.TRANSLATED_AUDIO:
+      case CALL_EVENT.TRANSLATION_INTERRUPTED:
         break;
       case CALL_EVENT.ERROR:
         setRequestError(event.data.message);
@@ -163,6 +207,7 @@ export function Call() {
     socketStatus: socket.status,
     sendBinary: socket.sendBinary,
     subscribeBinary: socket.subscribeBinary,
+    subscribeEvent: socket.subscribeEvent,
   });
 
   const updateLanguages = async (patch: {
@@ -233,13 +278,12 @@ export function Call() {
       )?.short ?? participant.spoken_language,
     status: "listening",
   }));
-  const currentParticipant = call.participants.find(
-    (participant) => participant.user_id === user?.id,
-  );
   const featured = people.length === 1 ? [people[0], people[0]] : people;
-  const speaker = featured[turn % featured.length];
-  const source = speaker?.languageCode ?? settings.spoken;
-  const target = currentParticipant?.heard_language ?? settings.heard;
+  const speaker =
+    people.find((person) => person.id === liveTranscript?.userId) ??
+    featured[turn % featured.length];
+  const source = liveTranscript?.source ?? speaker?.languageCode ?? settings.spoken;
+  const target = liveTranscript?.target ?? settings.heard;
   const silent = speaker
     ? (muteStates.get(speaker.id) ??
       (speaker.id === user?.id ? settings.muted : false))
@@ -315,28 +359,34 @@ export function Call() {
               >
                 <div className="stage-label">
                   <StatusBadge>TRADUÇÃO ATIVA</StatusBadge>
-                  <span className="demo-tag">transcrição demonstrativa</span>
+                  <span className="demo-tag">
+                    {liveTranscript ? "Gemini Live" : "transcrição demonstrativa"}
+                  </span>
                 </div>
                 <Participant
                   person={speaker}
                   currentUserId={user?.id}
                   active={!silent}
                   muted={silent}
-                  animated={animated}
+                  animated={liveTranscript ? !silent : animated}
                 />
               </section>
               <Transcript
                 speaker={speaker.name}
                 original={
-                  silent ? "Microfone desativado." : phrases[source][turn]
+                  silent
+                    ? "Microfone desativado."
+                    : (liveTranscript?.original ?? phrases[source][turn])
                 }
                 translated={
-                  silent ? "Aguardando sua voz." : phrases[target][turn]
+                  silent
+                    ? "Aguardando sua voz."
+                    : (liveTranscript?.translated ?? phrases[target][turn])
                 }
                 source={source}
                 target={target}
-                ready={silent || ready}
-                turnKey={key}
+                ready={silent || (liveTranscript ? Boolean(liveTranscript.translated) : ready)}
+                turnKey={liveTranscript ? liveTranscript.userId : key}
                 next={next}
               />
             </div>

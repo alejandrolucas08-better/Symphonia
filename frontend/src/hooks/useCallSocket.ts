@@ -21,6 +21,9 @@ export function useCallSocket({
   const binaryListenersRef = useRef(
     new Set<(payload: ArrayBuffer) => void>(),
   );
+  const eventListenersRef = useRef(
+    new Set<(event: ServerCallEnvelope) => void>(),
+  );
   const [status, setStatus] = useState<CallSocketStatus>("stopped");
   eventRef.current = onEvent;
 
@@ -31,7 +34,10 @@ export function useCallSocket({
     }
     const socket = new CallSocket(code, token);
     socketRef.current = socket;
-    const unsubscribe = socket.subscribe((event) => eventRef.current(event));
+    const unsubscribe = socket.subscribe((event) => {
+      eventRef.current(event);
+      eventListenersRef.current.forEach((listener) => listener(event));
+    });
     const unsubscribeStatus = socket.subscribeStatus(setStatus);
     const unsubscribeBinary = socket.subscribeBinary((payload) => {
       binaryListenersRef.current.forEach((listener) => listener(payload));
@@ -64,7 +70,14 @@ export function useCallSocket({
     },
     [],
   );
+  const subscribeEvent = useCallback(
+    (listener: (event: ServerCallEnvelope) => void) => {
+      eventListenersRef.current.add(listener);
+      return () => eventListenersRef.current.delete(listener);
+    },
+    [],
+  );
   const stop = useCallback(() => socketRef.current?.stop(), []);
 
-  return { status, sendChat, setMuted, sendBinary, subscribeBinary, stop };
+  return { status, sendChat, setMuted, sendBinary, subscribeBinary, subscribeEvent, stop };
 }
