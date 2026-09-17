@@ -19,6 +19,10 @@ var (
 
 const tokenLifetime = 72 * time.Hour
 
+const minSigningKeyBytes = 32
+
+const developmentSigningKey = "symphonia-dev-secret-change-in-production"
+
 type payload struct {
 	UserID int64 `json:"uid"`
 	Exp    int64 `json:"exp"`
@@ -27,9 +31,23 @@ type payload struct {
 func signingKey() []byte {
 	secret := os.Getenv("JWT_SECRET")
 	if secret == "" {
-		secret = "symphonia-dev-secret-change-in-production"
+		secret = developmentSigningKey
 	}
 	return []byte(secret)
+}
+
+// ValidateConfiguration prevents the server from issuing tokens with a known
+// or short signing key. It is called during application startup, while the
+// fallback above remains available only to keep package-level tests isolated.
+func ValidateConfiguration() error {
+	secret := os.Getenv("JWT_SECRET")
+	if secret == "" || secret == developmentSigningKey || secret == "change-this-in-production" {
+		return errors.New("JWT_SECRET must be a unique secret, not a development default")
+	}
+	if len([]byte(secret)) < minSigningKeyBytes {
+		return fmt.Errorf("JWT_SECRET must contain at least %d bytes", minSigningKeyBytes)
+	}
+	return nil
 }
 
 func GenerateToken(userID int64) (string, error) {

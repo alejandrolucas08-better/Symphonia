@@ -6,7 +6,7 @@ services:
       POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-symphonia}
       POSTGRES_DB: ${POSTGRES_DB:-symphonia}
     ports:
-      - "${POSTGRES_PORT:-5432}:5432"
+      - "127.0.0.1:${POSTGRES_PORT:-5432}:5432"
     volumes:
       - postgres-data:/var/lib/postgresql/data
     healthcheck:
@@ -22,13 +22,14 @@ services:
       APP_ENV: ${APP_ENV:-development}
       BACKEND_PORT: ${BACKEND_PORT:-8080}
       DATABASE_URL: postgres://${POSTGRES_USER:-symphonia}:${POSTGRES_PASSWORD:-symphonia}@postgres:5432/${POSTGRES_DB:-symphonia}?sslmode=disable
-      JWT_SECRET: ${JWT_SECRET:-change-this-in-production}
+      JWT_SECRET: ${JWT_SECRET:-}
+      CORS_ALLOWED_ORIGINS: ${CORS_ALLOWED_ORIGINS:-http://localhost:5173,http://127.0.0.1:5173}
       WS_ALLOWED_ORIGINS: ${WS_ALLOWED_ORIGINS:-http://localhost:5173,http://127.0.0.1:5173}
       TRANSLATION_PROVIDER: ${TRANSLATION_PROVIDER:-mock}
       GEMINI_API_KEY: ${GEMINI_API_KEY:-}
       TRANSLATION_MODEL: ${TRANSLATION_MODEL:-gemini-3.5-live-translate-preview}
     ports:
-      - "${BACKEND_PORT:-8080}:8080"
+      - "127.0.0.1:${BACKEND_PORT:-8080}:8080"
     depends_on:
       postgres:
         condition: service_healthy
@@ -36,6 +37,9 @@ services:
   frontend:
     build:
       context: ./frontend
+    # Explicitly bind Vite to every container interface so the published port
+    # can be reached by devices on the local network.
+    command: npm run dev -- --host 0.0.0.0
     environment:
       VITE_API_BASE_URL: ""
       API_PROXY_TARGET: http://backend:8080

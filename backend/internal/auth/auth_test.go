@@ -72,3 +72,24 @@ func TestValidateTokenRejectsExpired(t *testing.T) {
 		t.Fatal("ValidateToken accepted expired token")
 	}
 }
+
+func TestValidateConfiguration(t *testing.T) {
+	for _, test := range []struct {
+		name    string
+		secret  string
+		wantErr bool
+	}{
+		{name: "missing", wantErr: true},
+		{name: "development default", secret: developmentSigningKey, wantErr: true},
+		{name: "short", secret: "too-short", wantErr: true},
+		{name: "secure", secret: "0123456789abcdef0123456789abcdef"},
+	} {
+		t.Run(test.name, func(t *testing.T) {
+			t.Setenv("JWT_SECRET", test.secret)
+			err := ValidateConfiguration()
+			if (err != nil) != test.wantErr {
+				t.Fatalf("ValidateConfiguration() error = %v, wantErr %t", err, test.wantErr)
+			}
+		})
+	}
+}

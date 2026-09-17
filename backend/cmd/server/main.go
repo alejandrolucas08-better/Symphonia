@@ -6,6 +6,7 @@ import (
 	"log"
 	"net/http"
 	"os"
+	"time"
 
 	"github.com/institucional/symphonia/backend/internal/auth"
 	"github.com/institucional/symphonia/backend/internal/call"
@@ -24,6 +25,9 @@ func main() {
 	port := os.Getenv("BACKEND_PORT")
 	if port == "" {
 		port = "8080"
+	}
+	if err := auth.ValidateConfiguration(); err != nil {
+		log.Fatalf("invalid authentication configuration: %v", err)
 	}
 
 	ctx := context.Background()
@@ -66,11 +70,16 @@ func main() {
 	mux.HandleFunc("POST /api/calls/{code}/end", auth.Chain(callHandler.End, auth.Middleware))
 	mux.Handle("GET /api/calls/{code}/ws", websocketHandler)
 
-	handler := auth.CORS(auth.LogRequest(mux))
+	handler := auth.SecurityHeaders(auth.CORS(auth.LogRequest(mux)))
 
 	server := &http.Server{
-		Addr:    ":" + port,
-		Handler: handler,
+		Addr:              ":" + port,
+		Handler:           handler,
+		ReadHeaderTimeout: 5 * time.Second,
+		ReadTimeout:       15 * time.Second,
+		WriteTimeout:      30 * time.Second,
+		IdleTimeout:       60 * time.Second,
+		MaxHeaderBytes:    1 << 20,
 	}
 
 	log.Printf("Symphonia backend listening on :%s", port)

@@ -33,7 +33,7 @@ symphonia/
 
 - Node.js 22 or newer
 - npm 12 or newer
-- Go 1.23 or newer
+- Go 1.25 or newer
 - Docker and Docker Compose
 
 Go is only required when running the backend directly on the host. Docker can be used instead.
@@ -45,6 +45,20 @@ Copy `.env.example` to `.env` and adjust values when needed.
 ```bash
 cp .env.example .env
 ```
+
+Set `JWT_SECRET` to a unique value of at least 32 bytes before starting the
+backend. Generate one locally, keep it only in `.env`, and rotate it if it is
+ever exposed:
+
+```powershell
+$bytes = [byte[]]::new(48)
+[System.Security.Cryptography.RandomNumberGenerator]::Fill($bytes)
+[Convert]::ToBase64String($bytes)
+```
+
+The Compose configuration exposes only the frontend to the LAN. PostgreSQL and
+the backend API bind to `127.0.0.1` on the host and remain available to the
+frontend through Docker's internal network.
 
 ### Manual Gemini setup
 
@@ -102,17 +116,57 @@ network, open `http://<computer-LAN-IP>:5173` (use the published `FRONTEND_PORT`
 instead if changed in Compose). `localhost` on a phone refers to the phone,
 not the computer running Symphonia.
 
+When Docker prints a `Network` URL such as `http://172.19.0.4:5173`, **do not
+use it on another device**: it is the frontend container's private Docker IP.
+Use the LAN IP of the computer that runs Docker instead. On Windows, find it
+with:
+
+```powershell
+Get-NetIPAddress -AddressFamily IPv4 |
+  Where-Object { $_.AddressState -eq 'Preferred' } |
+  Format-Table InterfaceAlias, IPAddress
+```
+
+For example, if the active Wi-Fi or Ethernet adapter shows `192.168.18.7`, open
+`http://192.168.18.7:5173/` from the phone, tablet, or another computer. Both
+devices must be on the same LAN; a guest Wi-Fi network with client isolation
+will prevent this connection.
+
 Vite listens on all interfaces and proxies `/api`, including WebSockets, to the
 backend. Keep `VITE_API_BASE_URL` unset or empty to use this same-origin path.
 The proxy defaults to `http://127.0.0.1:8080`; Compose sets `API_PROXY_TARGET` to
 `http://backend:8080`. For a different backend port when running locally, set
 `API_PROXY_TARGET` in the environment of the Vite process.
 
+When using Docker, the frontend service explicitly binds Vite to `0.0.0.0` and
+publishes port `5173` on the host. If another device still cannot connect, allow
+the configured `FRONTEND_PORT` through the host firewall. On Windows, run this
+in an Administrator PowerShell to allow only devices on the private local
+subnet:
+
+```powershell
+New-NetFirewallRule `
+  -DisplayName "Symphonia Frontend (LAN)" `
+  -Direction Inbound `
+  -Action Allow `
+  -Protocol TCP `
+  -LocalPort 5173 `
+  -Profile Private `
+  -RemoteAddress LocalSubnet
+```
+
+This setup exposes the frontend only on the local network. Publishing it to the
+internet requires a reverse proxy with HTTPS and authentication; do not expose
+the development Vite server directly.
+
 Login and calls require the backend and PostgreSQL to be running as well.
 If the page cannot load, verify that the server is running, port 5173 is allowed
 by the host firewall, and the Wi-Fi network permits communication between devices.
 Microphone access from another device requires HTTPS with a certificate trusted
 by that device; browsers generally block microphone capture on plain HTTP LAN IPs.
+Use plain HTTP only on a trusted local network: bearer tokens and audio traffic
+are not encrypted. For any untrusted network or internet deployment, terminate
+HTTPS at a reverse proxy and serve the frontend through that proxy.
 
 The public landing-page demonstration uses local sample phrases. Authentication,
 calls, microphone streaming and Gemini translation require the backend and database.
