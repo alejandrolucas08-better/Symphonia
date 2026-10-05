@@ -47,7 +47,7 @@ test("two real sessions exchange call events", async ({ browser, request }) => {
   expect(joined.status()).toBe(200);
 
   const contextOptions = {
-    baseURL: "http://127.0.0.1:5173",
+    baseURL: process.env.E2E_BASE_URL ?? "http://127.0.0.1:5173",
     permissions: ["microphone"] as "microphone"[],
   };
   const hostContext = await browser.newContext(contextOptions);

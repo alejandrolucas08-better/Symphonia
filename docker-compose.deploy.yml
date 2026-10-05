@@ -1,0 +1,40 @@
+# Local preview of the production image. The regular Compose file stays unchanged.
+services:
+  postgres:
+    image: postgres:16-alpine
+    environment:
+      POSTGRES_USER: symphonia
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?Set POSTGRES_PASSWORD}
+      POSTGRES_DB: symphonia
+    volumes:
+      - deploy-postgres-data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U symphonia -d symphonia"]
+      interval: 3s
+      timeout: 3s
+      retries: 20
+  app:
+    image: symphonia-deploy:local
+    build:
+      context: .
+      dockerfile: Dockerfile
+    environment:
+      APP_ENV: production
+      PORT: "8080"
+      DATABASE_URL: postgres://symphonia:${POSTGRES_PASSWORD}@postgres:5432/symphonia?sslmode=disable
+      JWT_SECRET: ${JWT_SECRET:?Set JWT_SECRET}
+      TRANSLATION_PROVIDER: mock
+      CORS_ALLOWED_ORIGINS: http://localhost:${DEPLOY_PORT:-8081},http://127.0.0.1:${DEPLOY_PORT:-8081}
+      WS_ALLOWED_ORIGINS: http://localhost:${DEPLOY_PORT:-8081},http://127.0.0.1:${DEPLOY_PORT:-8081}
+    ports:
+      - "127.0.0.1:${DEPLOY_PORT:-8081}:8080"
+    depends_on:
+      postgres:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "wget", "-q", "--spider", "http://127.0.0.1:8080/healthz"]
+      interval: 5s
+      timeout: 3s
+      retries: 12
+volumes:
+  deploy-postgres-data:

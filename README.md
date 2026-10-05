@@ -209,6 +209,12 @@ curl http://localhost:8080/healthz
 
 ## Running with Docker Compose
 
+The development commands below are unchanged. For Railway deployment, production
+environment variables, and a local preview of the production image, see the
+[deployment guide](docs/deploy.md). The root `Dockerfile` builds the frontend and
+Go server into one non-root image; `railway.json` configures one replica and a
+database-aware `/healthz` check. SQL migrations are embedded in the Go binary.
+
 ```bash
 docker compose up --build
 ```

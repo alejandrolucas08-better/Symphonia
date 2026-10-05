@@ -7,10 +7,10 @@ import (
 	"log"
 	"os"
 	"path/filepath"
-	"runtime"
 	"sort"
 	"time"
 
+	"github.com/institucional/symphonia/backend/migrations"
 	"github.com/jackc/pgx/v5/pgxpool"
 )
 
@@ -19,6 +19,9 @@ var DB *pgxpool.Pool
 func Connect(ctx context.Context) (*pgxpool.Pool, error) {
 	dsn := os.Getenv("DATABASE_URL")
 	if dsn == "" {
+		if os.Getenv("APP_ENV") == "production" {
+			return nil, errors.New("DATABASE_URL is required in production")
+		}
 		dsn = "postgres://symphonia:symphonia@localhost:5432/symphonia?sslmode=disable"
 	}
 
@@ -37,7 +40,10 @@ func Connect(ctx context.Context) (*pgxpool.Pool, error) {
 		return nil, fmt.Errorf("connect to database: %w", err)
 	}
 
-	if err := pool.Ping(ctx); err != nil {
+	pingCtx, cancel := context.WithTimeout(ctx, 10*time.Second)
+	defer cancel()
+	if err := pool.Ping(pingCtx); err != nil {
+		pool.Close()
 		return nil, fmt.Errorf("ping database: %w", err)
 	}
 
@@ -49,12 +55,7 @@ func Connect(ctx context.Context) (*pgxpool.Pool, error) {
 // RunMigrations applies SQL migrations in filename order. Each migration is
 // idempotent, so running them at every startup is safe.
 func RunMigrations(ctx context.Context, db *pgxpool.Pool) error {
-	_, sourceFile, _, ok := runtime.Caller(0)
-	if !ok {
-		return errors.New("locate migration directory")
-	}
-	migrationDir := filepath.Join(filepath.Dir(sourceFile), "..", "..", "migrations")
-	entries, err := os.ReadDir(migrationDir)
+	entries, err := migrations.Files.ReadDir(".")
 	if err != nil {
 		return fmt.Errorf("read migrations: %w", err)
 	}
@@ -64,7 +65,7 @@ func RunMigrations(ctx context.Context, db *pgxpool.Pool) error {
 		if entry.IsDir() || filepath.Ext(entry.Name()) != ".sql" {
 			continue
 		}
-		contents, err := os.ReadFile(filepath.Join(migrationDir, entry.Name()))
+		contents, err := migrations.Files.ReadFile(entry.Name())
 		if err != nil {
 			return fmt.Errorf("read migration %s: %w", entry.Name(), err)
 		}

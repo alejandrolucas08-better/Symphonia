@@ -22,6 +22,9 @@ type Config struct {
 	GeminiAPIKey string
 	// GoogleCloudProject enables Vertex ADC authentication instead of API keys.
 	GoogleCloudProject string
+	// GoogleCredentialsJSON accepts a secret service-account JSON on hosted platforms.
+	// Empty keeps the existing Application Default Credentials discovery.
+	GoogleCredentialsJSON string
 	// TranslationModel overrides the default Live Translate model.
 	TranslationModel string
 	// GeminiLiveEndpoint overrides the default BidiGenerateContent endpoint.
@@ -38,11 +41,12 @@ type Config struct {
 //   - GEMINI_LIVE_ENDPOINT overrides the default BidiGenerateContent endpoint.
 func LoadConfig() Config {
 	return Config{
-		Provider:           providerFromEnv(os.Getenv("TRANSLATION_PROVIDER")),
-		GeminiAPIKey:       os.Getenv("GEMINI_API_KEY"),
-		GoogleCloudProject: strings.TrimSpace(os.Getenv("GOOGLE_CLOUD_PROJECT")),
-		TranslationModel:   os.Getenv("TRANSLATION_MODEL"),
-		GeminiLiveEndpoint: os.Getenv("GEMINI_LIVE_ENDPOINT"),
+		Provider:              providerFromEnv(os.Getenv("TRANSLATION_PROVIDER")),
+		GeminiAPIKey:          os.Getenv("GEMINI_API_KEY"),
+		GoogleCloudProject:    strings.TrimSpace(os.Getenv("GOOGLE_CLOUD_PROJECT")),
+		GoogleCredentialsJSON: os.Getenv("GOOGLE_CREDENTIALS_JSON"),
+		TranslationModel:      os.Getenv("TRANSLATION_MODEL"),
+		GeminiLiveEndpoint:    os.Getenv("GEMINI_LIVE_ENDPOINT"),
 	}
 }
 

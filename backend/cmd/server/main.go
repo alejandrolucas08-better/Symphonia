@@ -2,7 +2,6 @@ package main
 
 import (
 	"context"
-	"encoding/json"
 	"log"
 	"net/http"
 	"os"
@@ -13,18 +12,17 @@ import (
 	"github.com/institucional/symphonia/backend/internal/auth"
 	"github.com/institucional/symphonia/backend/internal/call"
 	"github.com/institucional/symphonia/backend/internal/database"
+	appserver "github.com/institucional/symphonia/backend/internal/server"
 	"github.com/institucional/symphonia/backend/internal/translation"
 	"github.com/institucional/symphonia/backend/internal/user"
 	ws "github.com/institucional/symphonia/backend/internal/websocket"
 )
 
-type healthResponse struct {
-	Status  string `json:"status"`
-	Service string `json:"service"`
-}
-
 func main() {
-	port := os.Getenv("BACKEND_PORT")
+	port := os.Getenv("PORT")
+	if port == "" {
+		port = os.Getenv("BACKEND_PORT")
+	}
 	if port == "" {
 		port = "8080"
 	}
@@ -59,7 +57,7 @@ func main() {
 	websocketHandler := ws.NewHandler(callRepo, hub, opener)
 
 	mux := http.NewServeMux()
-	mux.HandleFunc("/healthz", healthHandler)
+	mux.HandleFunc("GET /healthz", appserver.HealthHandler(pool.Ping))
 	mux.HandleFunc("POST /api/register", authHandler.Register)
 	mux.HandleFunc("POST /api/login", authHandler.Login)
 	mux.HandleFunc("GET /api/session", auth.Chain(authHandler.Session, auth.Middleware))
@@ -71,6 +69,13 @@ func main() {
 	mux.HandleFunc("POST /api/calls/{code}/leave", auth.Chain(callHandler.Leave, auth.Middleware))
 	mux.HandleFunc("POST /api/calls/{code}/end", auth.Chain(callHandler.End, auth.Middleware))
 	mux.Handle("GET /api/calls/{code}/ws", websocketHandler)
+	if directory := os.Getenv("FRONTEND_DIST"); directory != "" {
+		static, err := appserver.StaticHandler(directory)
+		if err != nil {
+			log.Fatalf("failed to load frontend: %v", err)
+		}
+		mux.Handle("GET /", static)
+	}
 
 	handler := auth.SecurityHeaders(auth.CORS(auth.LogRequest(mux)))
 
@@ -103,16 +108,4 @@ func main() {
 	}
 	stop()
 	<-shutdownDone
-}
-
-func healthHandler(w http.ResponseWriter, _ *http.Request) {
-	w.Header().Set("Content-Type", "application/json")
-	w.WriteHeader(http.StatusOK)
-
-	if err := json.NewEncoder(w).Encode(healthResponse{
-		Status:  "ok",
-		Service: "symphonia-backend",
-	}); err != nil {
-		log.Printf("failed to encode health response: %v", err)
-	}
 }

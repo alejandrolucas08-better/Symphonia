@@ -1,12 +1,14 @@
 import { defineConfig } from "@playwright/test";
 
+const baseURL = process.env.E2E_BASE_URL ?? "http://127.0.0.1:5173";
+
 export default defineConfig({
   testDir: "./tests",
   fullyParallel: true,
   workers: 3,
   reporter: "list",
-  use: { baseURL: "http://127.0.0.1:5173", trace: "retain-on-failure" },
-  webServer: {
+  use: { baseURL, trace: "retain-on-failure" },
+  webServer: process.env.E2E_BASE_URL ? undefined : {
     command: "npm run dev -- --host 127.0.0.1 --port 5173 --strictPort",
     url: "http://127.0.0.1:5173",
     reuseExistingServer: !process.env.CI,

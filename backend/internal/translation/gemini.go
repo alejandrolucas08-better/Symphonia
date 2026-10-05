@@ -93,6 +93,15 @@ func NewGeminiService(config Config) (*GeminiTranslationService, error) {
 			}
 			return credentials.TokenSource.Token()
 		}
+		if config.GoogleCredentialsJSON != "" {
+			credentials, err := google.JWTConfigFromJSON([]byte(config.GoogleCredentialsJSON), "https://www.googleapis.com/auth/cloud-platform")
+			if err != nil {
+				return nil, fmt.Errorf("%w: GOOGLE_CREDENTIALS_JSON must be valid service-account JSON", ErrGeminiNotConfigured)
+			}
+			service.token = func(ctx context.Context) (*oauth2.Token, error) {
+				return credentials.TokenSource(ctx).Token()
+			}
+		}
 	}
 	if config.TranslationModel != "" {
 		service.model = config.TranslationModel
