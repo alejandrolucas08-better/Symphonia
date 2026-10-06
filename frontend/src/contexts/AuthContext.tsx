@@ -19,11 +19,20 @@ type AuthState = {
 
 export const AuthContext = createContext<AuthState | null>(null);
 
-const SESSION_KEY = "symphonia_token";
+const STORAGE_KEY = "symphonia_token";
 
 function readToken(): string | null {
   try {
-    return sessionStorage.getItem(SESSION_KEY);
+    const persistedToken = localStorage.getItem(STORAGE_KEY);
+    if (persistedToken) return persistedToken;
+
+    // Preserve sessions created by versions that stored the token per tab.
+    const legacyToken = sessionStorage.getItem(STORAGE_KEY);
+    if (legacyToken) {
+      localStorage.setItem(STORAGE_KEY, legacyToken);
+      sessionStorage.removeItem(STORAGE_KEY);
+    }
+    return legacyToken;
   } catch {
     return null;
   }
@@ -32,10 +41,11 @@ function readToken(): string | null {
 function writeToken(token: string | null) {
   try {
     if (token) {
-      sessionStorage.setItem(SESSION_KEY, token);
+      localStorage.setItem(STORAGE_KEY, token);
     } else {
-      sessionStorage.removeItem(SESSION_KEY);
+      localStorage.removeItem(STORAGE_KEY);
     }
+    sessionStorage.removeItem(STORAGE_KEY);
   } catch {
     // storage unavailable
   }

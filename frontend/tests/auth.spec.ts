@@ -94,11 +94,17 @@ test("sessão: token válido restaura autenticação ao recarregar", async ({
     "ANA SOUZA.",
   );
   await expect(page.locator(".account-name")).toHaveText("Ana Souza");
+  await expect
+    .poll(() => page.evaluate(() => localStorage.getItem("symphonia_token")))
+    .toBe(token);
+  expect(
+    await page.evaluate(() => sessionStorage.getItem("symphonia_token")),
+  ).toBeNull();
 });
 
 test("sessão: token inválido redireciona para login", async ({ page }) => {
   await page.addInitScript((tkn) => {
-    sessionStorage.setItem("symphonia_token", tkn);
+    localStorage.setItem("symphonia_token", tkn);
   }, token);
   await page.route("**/api/session", (route) =>
     route.fulfill({

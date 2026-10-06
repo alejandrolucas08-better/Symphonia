@@ -53,10 +53,10 @@ test("two real sessions exchange call events", async ({ browser, request }) => {
   const hostContext = await browser.newContext(contextOptions);
   const guestContext = await browser.newContext(contextOptions);
   await hostContext.addInitScript((token) => {
-    sessionStorage.setItem("symphonia_token", token);
+    localStorage.setItem("symphonia_token", token);
   }, hostToken);
   await guestContext.addInitScript((token) => {
-    sessionStorage.setItem("symphonia_token", token);
+    localStorage.setItem("symphonia_token", token);
   }, guestToken);
 
   const host = await hostContext.newPage();

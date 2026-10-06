@@ -154,7 +154,7 @@ export async function mockAuthenticated(
   user: MockUser = defaultUser,
 ) {
   await page.addInitScript((tkn) => {
-    sessionStorage.setItem("symphonia_token", tkn);
+    localStorage.setItem("symphonia_token", tkn);
   }, token);
   await page.route("**/api/session", (route) =>
     json(route, 200, user, { Authorization: `Bearer ${token}` }),
