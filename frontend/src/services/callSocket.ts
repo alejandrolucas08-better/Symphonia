@@ -113,6 +113,20 @@ function parseEnvelope(raw: unknown): ServerCallEnvelope | null {
       break;
     case CALL_EVENT.MESSAGE:
       if (!isMessage(data)) return null;
+      if (
+        data.translation_status !== undefined &&
+        data.translation_status !== "none" &&
+        data.translation_status !== "pending" &&
+        data.translation_status !== "unavailable"
+      ) return null;
+      break;
+    case CALL_EVENT.MESSAGE_TRANSLATION:
+      if (
+        typeof data.message_id !== "string" ||
+        typeof data.text !== "string" ||
+        !languageCodes.has(data.language as LanguageCode) ||
+        (data.status !== "ready" && data.status !== "unavailable")
+      ) return null;
       break;
     case CALL_EVENT.MUTE_STATE:
       if (typeof data.user_id !== "number" || typeof data.muted !== "boolean")

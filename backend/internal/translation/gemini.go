@@ -61,11 +61,13 @@ var (
 // Gemini Live Translate model. It is fully isolated behind the translation
 // package API; the rest of the application never imports provider internals.
 type GeminiTranslationService struct {
-	apiKey   string
-	model    string
-	endpoint string
-	project  string
-	token    func(context.Context) (*oauth2.Token, error)
+	apiKey       string
+	model        string
+	endpoint     string
+	project      string
+	token        func(context.Context) (*oauth2.Token, error)
+	textModel    string
+	textEndpoint string
 }
 
 // NewGeminiService validates the configuration and returns a Gemini-backed
@@ -78,10 +80,11 @@ func NewGeminiService(config Config) (*GeminiTranslationService, error) {
 		return nil, fmt.Errorf("%w: GOOGLE_CLOUD_PROJECT with ADC or GEMINI_API_KEY is required", ErrGeminiNotConfigured)
 	}
 	service := &GeminiTranslationService{
-		apiKey:   config.GeminiAPIKey,
-		model:    DefaultTranslationModel,
-		endpoint: DefaultGeminiLiveEndpoint,
-		project:  config.GoogleCloudProject,
+		apiKey:    config.GeminiAPIKey,
+		model:     DefaultTranslationModel,
+		endpoint:  DefaultGeminiLiveEndpoint,
+		project:   config.GoogleCloudProject,
+		textModel: DefaultTextTranslationModel,
 	}
 	if service.project != "" {
 		service.apiKey = ""
@@ -105,6 +108,13 @@ func NewGeminiService(config Config) (*GeminiTranslationService, error) {
 	}
 	if config.TranslationModel != "" {
 		service.model = config.TranslationModel
+	}
+	if config.TextTranslationModel != "" {
+		service.textModel = config.TextTranslationModel
+	}
+	service.textEndpoint = textTranslationEndpoint(service.project, service.textModel)
+	if config.GeminiTextEndpoint != "" {
+		service.textEndpoint = config.GeminiTextEndpoint
 	}
 	if config.GeminiLiveEndpoint != "" {
 		service.endpoint = config.GeminiLiveEndpoint

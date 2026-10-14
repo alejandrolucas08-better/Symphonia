@@ -74,6 +74,9 @@ Sem `GOOGLE_CREDENTIALS_JSON`, a descoberta ADC existente continua funcionando
 (arquivo indicado por `GOOGLE_APPLICATION_CREDENTIALS` ou identidade disponivel
 no ambiente). Sem `GOOGLE_CLOUD_PROJECT`, o backend usa a alternativa existente
 `GEMINI_API_KEY`; confirme que o modelo escolhido esta disponivel nessa API.
+O chat usa as mesmas credenciais e traduz mensagens com
+`TEXT_TRANSLATION_MODEL=gemini-2.5-flash` (valor padrao). Sem Gemini, as
+mensagens originais continuam chegando, mas a traducao fica indisponivel.
 
 A autorizacao real so e exercitada ao abrir uma sessao de traducao. O modelo e
 preview e seu acesso depende do Google. Use inicialmente dados de teste e

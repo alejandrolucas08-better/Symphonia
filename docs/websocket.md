@@ -80,11 +80,23 @@ Send a transient text message with:
 {"version":1,"type":"message","request_id":"message-1","data":{"text":"Hello"}}
 ```
 
-Text is trimmed and must contain 1 to 1000 Unicode codepoints. The message is broadcast to both participants, including its sender:
+Text is trimmed and must contain 1 to 1000 Unicode codepoints. The original is sent immediately to both participants, including its sender:
 
 ```json
-{"version":1,"type":"message","data":{"id":"8aceebd33d7a4e9291ecb3909c015cfe","user_id":1,"name":"Ada","language":"EN-US","text":"Hello","sent_at":"2026-09-16T12:34:56Z"},"occurred_at":"2026-09-16T12:34:56Z"}
+{"version":1,"type":"message","data":{"id":"8aceebd33d7a4e9291ecb3909c015cfe","user_id":1,"name":"Ada","language":"EN-US","text":"Hello","sent_at":"2026-09-16T12:34:56Z","translation_status":"none"},"occurred_at":"2026-09-16T12:34:56Z"}
 ```
+
+For a recipient whose heard language differs from the sender's spoken language,
+`translation_status` is `pending` when translation starts or `unavailable` when
+the provider is not configured or at capacity. The sender always sees `none`.
+When translation completes, only the recipient receives:
+
+```json
+{"version":1,"type":"message_translation","data":{"message_id":"8aceebd33d7a4e9291ecb3909c015cfe","text":"Olá","language":"PT-BR","status":"ready"},"occurred_at":"2026-09-16T12:34:57Z"}
+```
+
+On failure, `status` is `unavailable` and `text` is empty. Messages and
+translations are transient; unread counts are local to the current browser tab.
 
 Send a mute state with:
 

@@ -27,10 +27,12 @@ const statusConnectionReplaced websocket.StatusCode = 4001
 var errConnectionReplaced = errors.New("connection was replaced or removed")
 
 type Hub struct {
-	mu           sync.Mutex
-	rooms        map[string]*room
-	translations translation.SessionOpener
-	closed       bool
+	mu             sync.Mutex
+	rooms          map[string]*room
+	translations   translation.SessionOpener
+	textTranslator translation.TextTranslator
+	textSlots      chan struct{}
+	closed         bool
 }
 
 type room struct {
@@ -82,13 +84,16 @@ type muteState struct {
 }
 
 func NewHub() *Hub {
-	return &Hub{rooms: make(map[string]*room)}
+	return &Hub{rooms: make(map[string]*room), textSlots: make(chan struct{}, 4)}
 }
 
-// setTranslations enables streaming translation for the hub. It must be called
-// before any audio flows; with a nil service the hub only relays raw audio.
+// setTranslations enables audio and, when supported, chat translation.
+// It must be called before audio or messages flow.
 func (h *Hub) setTranslations(service translation.SessionOpener) {
 	h.translations = service
+	if textService, ok := service.(translation.TextTranslator); ok {
+		h.textTranslator = textService
+	}
 }
 
 func (h *Hub) add(code string, participant call.Participant, socket *websocket.Conn, requestID string, currentCall *call.Call) (*connection, error) {
@@ -215,15 +220,84 @@ func (h *Hub) message(client *connection, text string) {
 		return
 	}
 	participant := client.participant
+	var peer *connection
+	var target translation.Language
+	for userID, other := range r.connections {
+		if userID != client.userID && other.ready {
+			peer = other
+			target = translation.Language(other.participant.HeardLanguage)
+			break
+		}
+	}
 	h.mu.Unlock()
-	h.broadcast(client.code, 0, EventMessage, struct {
-		ID       string        `json:"id"`
-		UserID   int64         `json:"user_id"`
-		Name     string        `json:"name"`
-		Language call.Language `json:"language"`
-		Text     string        `json:"text"`
-		SentAt   time.Time     `json:"sent_at"`
-	}{ID: messageID(), UserID: client.userID, Name: participant.Name, Language: participant.SpokenLanguage, Text: text, SentAt: time.Now().UTC()})
+	message := struct {
+		ID                string        `json:"id"`
+		UserID            int64         `json:"user_id"`
+		Name              string        `json:"name"`
+		Language          call.Language `json:"language"`
+		Text              string        `json:"text"`
+		SentAt            time.Time     `json:"sent_at"`
+		TranslationStatus string        `json:"translation_status"`
+	}{ID: messageID(), UserID: client.userID, Name: participant.Name, Language: participant.SpokenLanguage, Text: text, SentAt: time.Now().UTC()}
+	message.TranslationStatus = "none"
+	_ = client.send(EventMessage, "", message)
+	if peer == nil {
+		return
+	}
+	if participant.SpokenLanguage == call.Language(target) {
+		_ = peer.send(EventMessage, "", message)
+		return
+	}
+	message.TranslationStatus = "unavailable"
+	translate := false
+	if h.textTranslator != nil {
+		select {
+		case h.textSlots <- struct{}{}:
+			translate = true
+			message.TranslationStatus = "pending"
+		default:
+		}
+	}
+	if err := peer.send(EventMessage, "", message); err != nil {
+		if translate {
+			<-h.textSlots
+		}
+		return
+	}
+	if translate {
+		go h.translateMessage(peer, message.ID, text, translation.Language(participant.SpokenLanguage), target)
+	}
+}
+
+func (h *Hub) translateMessage(peer *connection, messageID, text string, source, target translation.Language) {
+	defer func() { <-h.textSlots }()
+	ctx, cancel := context.WithTimeout(peer.ctx, 12*time.Second)
+	defer cancel()
+	translated, err := h.textTranslator.TranslateText(ctx, translation.TextRequest{
+		Text: text, SourceLanguage: source, TargetLanguage: target,
+	})
+	status := "ready"
+	if err != nil {
+		log.Printf("websocket: chat translation failed (target %s): %v", target, err)
+		status = "unavailable"
+		translated = ""
+	}
+	h.mu.Lock()
+	r := h.rooms[peer.code]
+	active := r != nil && r.connections[peer.userID] == peer
+	if active && peer.participant.HeardLanguage != call.Language(target) {
+		status = "unavailable"
+		translated = ""
+	}
+	h.mu.Unlock()
+	if active {
+		_ = peer.send(EventMessageTranslation, "", struct {
+			MessageID string               `json:"message_id"`
+			Text      string               `json:"text"`
+			Language  translation.Language `json:"language"`
+			Status    string               `json:"status"`
+		}{MessageID: messageID, Text: translated, Language: target, Status: status})
+	}
 }
 
 func (h *Hub) mute(client *connection, muted bool) {

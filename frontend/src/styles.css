@@ -1369,6 +1369,27 @@ main:focus {
   color: var(--text-secondary);
   white-space: pre-wrap;
 }
+.chat-message > .chat-message-translated {
+  color: var(--text);
+}
+.chat-message > .chat-message-original {
+  margin-top: 8px;
+  padding-left: 10px;
+  border-left: 2px solid var(--line);
+  font-size: 14px;
+}
+.chat-message-original > span {
+  display: block;
+  font-size: 11px;
+  color: var(--text-secondary);
+  margin-bottom: 2px;
+}
+.chat-translation-state {
+  display: block;
+  margin-top: 4px;
+  color: var(--text-secondary);
+  font-size: 12px;
+}
 .chat-form {
   display: flex;
   gap: 8px;
@@ -1390,6 +1411,47 @@ main:focus {
   background: var(--background);
   border-top: 1px solid var(--line);
   padding-bottom: env(safe-area-inset-bottom);
+}
+.chat-notice {
+  position: absolute;
+  right: max(16px, calc((100vw - 1280px) / 2 + 24px));
+  bottom: calc(100% + 10px);
+  width: min(330px, calc(100vw - 32px));
+  display: flex;
+  align-items: flex-start;
+  gap: 4px;
+  padding: 10px 8px 10px 12px;
+  background: var(--surface);
+  border: 1px solid var(--line);
+  border-left: 3px solid var(--signal);
+  box-shadow: 0 6px 24px #20272b18;
+}
+.chat-notice-open {
+  display: flex;
+  align-items: flex-start;
+  gap: 10px;
+  flex: 1;
+  min-width: 0;
+  text-align: left;
+}
+.chat-notice-open > span {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+}
+.chat-notice-open strong,
+.chat-notice-open span span {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.chat-notice-open span span {
+  color: var(--text-secondary);
+  font-size: 12px;
+}
+.chat-notice .icon-button {
+  width: 28px;
+  height: 28px;
 }
 .controls-inner {
   display: flex;
@@ -1430,6 +1492,24 @@ main:focus {
   height: 46px;
   background: var(--surface);
   border: 1px solid var(--line);
+}
+.chat-control-button {
+  position: relative;
+}
+.chat-unread-badge {
+  position: absolute;
+  top: -7px;
+  right: -9px;
+  min-width: 20px;
+  height: 20px;
+  padding: 0 4px;
+  display: grid;
+  place-items: center;
+  border-radius: 10px;
+  color: white;
+  background: var(--signal);
+  font-size: 11px;
+  line-height: 1;
 }
 .control-muted {
   color: #a83e3e;

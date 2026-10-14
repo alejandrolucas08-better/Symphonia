@@ -27,9 +27,13 @@ type Config struct {
 	GoogleCredentialsJSON string
 	// TranslationModel overrides the default Live Translate model.
 	TranslationModel string
+	// TextTranslationModel selects the model used for chat messages.
+	TextTranslationModel string
 	// GeminiLiveEndpoint overrides the default BidiGenerateContent endpoint.
 	// Intended for proxies and local harnesses in tests.
 	GeminiLiveEndpoint string
+	// GeminiTextEndpoint overrides the text endpoint in local tests.
+	GeminiTextEndpoint string
 }
 
 // LoadConfig builds Config from environment variables.
@@ -38,6 +42,7 @@ type Config struct {
 //   - GOOGLE_CLOUD_PROJECT selects Vertex ADC (global location).
 //   - GEMINI_API_KEY selects Developer API when the project is empty.
 //   - TRANSLATION_MODEL overrides the default Live Translate model.
+//   - TEXT_TRANSLATION_MODEL overrides the chat translation model.
 //   - GEMINI_LIVE_ENDPOINT overrides the default BidiGenerateContent endpoint.
 func LoadConfig() Config {
 	return Config{
@@ -46,7 +51,9 @@ func LoadConfig() Config {
 		GoogleCloudProject:    strings.TrimSpace(os.Getenv("GOOGLE_CLOUD_PROJECT")),
 		GoogleCredentialsJSON: os.Getenv("GOOGLE_CREDENTIALS_JSON"),
 		TranslationModel:      os.Getenv("TRANSLATION_MODEL"),
+		TextTranslationModel:  os.Getenv("TEXT_TRANSLATION_MODEL"),
 		GeminiLiveEndpoint:    os.Getenv("GEMINI_LIVE_ENDPOINT"),
+		GeminiTextEndpoint:    os.Getenv("GEMINI_TEXT_ENDPOINT"),
 	}
 }
 

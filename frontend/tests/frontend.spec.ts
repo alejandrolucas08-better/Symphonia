@@ -518,6 +518,41 @@ test("chat drawer scrolls independently, keeps the composer visible and preserve
   await expect(input).toHaveValue("");
 });
 
+test("chat translates incoming text and notifies only while closed", async ({ page }) => {
+  await page.goto("/call/demo-room");
+  await expect(page.getByText("conectado").first()).toBeVisible();
+  const message = {
+    id: "translated-1", user_id: 2, name: "Mateus", language: "EN-US",
+    text: "Hello", sent_at: "2026-01-01T00:00:00Z", translation_status: "pending",
+  };
+  callSocketMock.send(CALL_EVENT.MESSAGE, message);
+  await expect(page.getByRole("button", { name: "Abrir chat, 1 mensagens não lidas" })).toBeVisible();
+  await expect(page.locator(".chat-notice")).toContainText("Hello");
+  callSocketMock.send(CALL_EVENT.MESSAGE, message);
+  await expect(page.locator(".chat-unread-badge")).toHaveText("1");
+  callSocketMock.send(CALL_EVENT.MESSAGE_TRANSLATION, {
+    message_id: "translated-1", text: "Olá", language: "PT-BR", status: "ready",
+  });
+  await expect(page.locator(".chat-notice")).toContainText("Olá");
+  await page.locator(".chat-notice-open").click();
+  await expect(page.locator(".chat-unread-badge")).toHaveCount(0);
+  await expect(page.getByRole("log").locator(".chat-message-translated")).toHaveText("Olá");
+  await expect(page.getByRole("log").locator(".chat-message-original")).toContainText("Hello");
+  callSocketMock.send(CALL_EVENT.MESSAGE, {
+    ...message, id: "translated-2", text: "Goodbye", translation_status: "pending",
+  });
+  callSocketMock.send(CALL_EVENT.MESSAGE_TRANSLATION, {
+    message_id: "translated-2", text: "", language: "PT-BR", status: "unavailable",
+  });
+  await expect(page.getByRole("log")).toContainText("Tradução indisponível");
+  await page.getByRole("button", { name: "Fechar chat" }).click();
+  await expect(page.locator(".chat-unread-badge")).toHaveCount(0);
+  callSocketMock.send(CALL_EVENT.MESSAGE, {
+    ...message, id: "mine", user_id: 1, name: "Ana Souza", text: "My message",
+  });
+  await expect(page.locator(".chat-unread-badge")).toHaveCount(0);
+});
+
 test("audio codec writes and validates the fixed binary frame", async ({ page }) => {
   await page.goto("/");
   const result = await page.evaluate(async () => {

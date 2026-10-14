@@ -30,6 +30,7 @@ const (
 	EventParticipantJoined      = "participant_joined"
 	EventParticipantLeft        = "participant_left"
 	EventMessage                = "message"
+	EventMessageTranslation     = "message_translation"
 	EventMuteState              = "mute_state"
 	EventLanguageChanged        = "language_changed"
 	EventCallEnded              = "call_ended"
@@ -87,7 +88,7 @@ func DecodeClient(payload []byte) (ClientEnvelope, error) {
 	switch envelope.Type {
 	case EventJoinCall, EventMessage, EventMuteState:
 		return envelope, nil
-	case EventParticipantJoined, EventParticipantLeft, EventLanguageChanged, EventCallEnded, EventError,
+	case EventParticipantJoined, EventParticipantLeft, EventLanguageChanged, EventCallEnded, EventError, EventMessageTranslation,
 		EventInputTranscription, EventOutputTranscription, EventTranslatedAudio, EventTranslationInterrupted:
 		return envelope, protocolError("server_only_event", "event type is server-only", envelope.RequestID)
 	default:

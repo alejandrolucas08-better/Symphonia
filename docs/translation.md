@@ -14,6 +14,7 @@ tom PCM para validar o fluxo sem serviços externos. Para usar Gemini, configure
 TRANSLATION_PROVIDER=gemini
 GOOGLE_CLOUD_PROJECT=<seu-projeto>
 TRANSLATION_MODEL=gemini-3.5-live-translate-preview
+TEXT_TRANSLATION_MODEL=gemini-2.5-flash
 ```
 
 O projeto seleciona Vertex com ADC e tem precedência sobre qualquer API key.
@@ -89,8 +90,13 @@ setup por até 10 segundos; depois disso a conexão permanece aberta durante pau
 - O frontend consome transcrições e PCM binário a 16 kHz. O teste de navegador valida o
   contrato e a taxa de reprodução com WebSocket simulado; a chave e o serviço
   Gemini reais ainda precisam da verificação manual descrita no README.
-- O fluxo do hub considera chamadas de dois participantes e traduz áudio; mensagens
-  de chat continuam no fluxo existente, sem tradução.
+- O chat envia imediatamente a mensagem original aos dois participantes. Se o
+  idioma falado pelo remetente for diferente do idioma ouvido pelo destinatário,
+  o Gemini traduz o texto em segundo plano com `TEXT_TRANSLATION_MODEL`
+  (`gemini-2.5-flash` por padrão). A tradução chega apenas ao destinatário, que
+  continua podendo ver o original. Usa a mesma chave Gemini ou credenciais
+  Vertex configuradas para a tradução de áudio. Em modo `mock`, ou se a API
+  falhar, o original permanece visível com aviso de tradução indisponível.
 - Falhas de abertura/envio são notificadas com `translation_unavailable`, sem
   retransmitir silenciosamente o áudio original. Aberturas têm intervalo mínimo
   de cinco segundos após falha de abertura; não há replay do áudio perdido.

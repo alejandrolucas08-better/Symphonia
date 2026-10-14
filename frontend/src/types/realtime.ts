@@ -6,6 +6,7 @@ export const CALL_EVENT = {
   PARTICIPANT_JOINED: "participant_joined",
   PARTICIPANT_LEFT: "participant_left",
   MESSAGE: "message",
+  MESSAGE_TRANSLATION: "message_translation",
   MUTE_STATE: "mute_state",
   LANGUAGE_CHANGED: "language_changed",
   CALL_ENDED: "call_ended",
@@ -25,6 +26,9 @@ export type RealtimeMessage = {
   language: LanguageCode;
   text: string;
   sent_at: string;
+  translation_status?: "none" | "pending" | "ready" | "unavailable";
+  translated_text?: string;
+  translated_language?: LanguageCode;
 };
 
 export type MuteState = { user_id: number; muted: boolean };
@@ -54,6 +58,10 @@ type ServerEventData =
       data: { user_id: number; reason: string };
     }
   | { type: typeof CALL_EVENT.MESSAGE; data: RealtimeMessage }
+  | {
+      type: typeof CALL_EVENT.MESSAGE_TRANSLATION;
+      data: { message_id: string; text: string; language: LanguageCode; status: "ready" | "unavailable" };
+    }
   | { type: typeof CALL_EVENT.MUTE_STATE; data: MuteState }
   | {
       type: typeof CALL_EVENT.LANGUAGE_CHANGED;

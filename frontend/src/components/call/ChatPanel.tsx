@@ -74,7 +74,21 @@ export function ChatPanel({
                 {message.language}
               </span>
             </p>
-            <div>{message.text}</div>
+            {message.translated_text ? (
+              <>
+                <div className="chat-message-translated" lang={message.translated_language?.toLowerCase()}>{message.translated_text}</div>
+                <div className="chat-message-original" lang={message.language.toLowerCase()}>
+                  <span>ORIGINAL · {message.language}</span>
+                  {message.text}
+                </div>
+              </>
+            ) : (
+              <>
+                <div lang={message.language.toLowerCase()}>{message.text}</div>
+                {message.translation_status === "pending" && <span className="chat-translation-state">Traduzindo...</span>}
+                {message.translation_status === "unavailable" && <span className="chat-translation-state">Tradução indisponível</span>}
+              </>
+            )}
           </div>
         ))}
       </div>

@@ -20,11 +20,17 @@ export function CallControls({
   onLanguageChange,
   onMuteChange,
   chatOpen,
+  unreadCount,
+  chatNotice,
   onChatToggle,
+  onChatNoticeDismiss,
 }: {
   onEnd: () => void;
   chatOpen: boolean;
+  unreadCount: number;
+  chatNotice: { id: string; name: string; text: string } | null;
   onChatToggle: () => void;
+  onChatNoticeDismiss: () => void;
   onMuteChange?: (muted: boolean) => boolean | Promise<boolean>;
   onLanguageChange?: (patch: {
     spoken?: LanguageCode;
@@ -35,6 +41,15 @@ export function CallControls({
   const [languagesOpen, setLanguagesOpen] = useState(false);
   return (
     <div className="call-controls">
+      {chatNotice && !chatOpen && (
+        <div className="chat-notice" role="status">
+          <button type="button" className="chat-notice-open" onClick={onChatToggle}>
+            <MessageSquare size={18} />
+            <span><strong>{chatNotice.name}</strong><span>{chatNotice.text}</span></span>
+          </button>
+          <button type="button" className="icon-button" aria-label="Dispensar notificação" title="Dispensar notificação" onClick={onChatNoticeDismiss}><X size={16} /></button>
+        </div>
+      )}
       <div className="container controls-inner">
         <div className="translation-status">
           <StatusBadge>TRADUÇÃO ATIVA</StatusBadge>
@@ -111,9 +126,10 @@ export function CallControls({
             </span>
           </div>
           <div className="control-item">
-            <button className="icon-button control-button" title="Abrir chat" aria-label="Abrir chat"
+            <button className="icon-button control-button chat-control-button" title={unreadCount ? `Abrir chat, ${unreadCount} mensagens não lidas` : "Abrir chat"} aria-label={unreadCount ? `Abrir chat, ${unreadCount} mensagens não lidas` : "Abrir chat"}
               aria-expanded={chatOpen} aria-controls="call-chat" onClick={onChatToggle}>
               <MessageSquare size={21} />
+              {unreadCount > 0 && !chatOpen && <span className="chat-unread-badge" aria-hidden="true">{unreadCount > 9 ? "9+" : unreadCount}</span>}
             </button>
             <span>chat</span>
           </div>

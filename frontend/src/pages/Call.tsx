@@ -37,6 +37,8 @@ export function Call() {
   const [seconds, setSeconds] = useState(0);
   const [messages, setMessages] = useState<RealtimeMessage[]>([]);
   const [chatOpen, setChatOpen] = useState(false);
+  const [unreadCount, setUnreadCount] = useState(0);
+  const [chatNotice, setChatNotice] = useState<{ id: string; name: string; text: string } | null>(null);
   const [muteStates, setMuteStates] = useState<Map<number, boolean>>(new Map());
   const [liveTranscript, setLiveTranscript] = useState<{
     userId: number;
@@ -47,6 +49,9 @@ export function Call() {
   } | null>(null);
   const dialog = useRef<HTMLDialogElement>(null);
   const refreshCall = useRef<() => void>(() => undefined);
+  const chatOpenRef = useRef(chatOpen);
+  const messageIds = useRef(new Set<string>());
+  chatOpenRef.current = chatOpen;
   const navigate = useNavigate();
 
   useEffect(() => {
@@ -98,9 +103,30 @@ export function Call() {
 
   useEffect(() => {
     setMessages([]);
+    messageIds.current.clear();
+    setUnreadCount(0);
+    setChatNotice(null);
     setMuteStates(new Map());
     setLiveTranscript(null);
   }, [id]);
+
+  useEffect(() => {
+    if (!chatNotice) return;
+    const timer = window.setTimeout(() => setChatNotice(null), 5000);
+    return () => window.clearTimeout(timer);
+  }, [chatNotice]);
+
+  const openChat = () => {
+    chatOpenRef.current = true;
+    setChatOpen(true);
+    setUnreadCount(0);
+    setChatNotice(null);
+  };
+
+  const closeChat = () => {
+    chatOpenRef.current = false;
+    setChatOpen(false);
+  };
 
   const handleSocketEvent = (event: ServerCallEnvelope) => {
     switch (event.type) {
@@ -130,11 +156,30 @@ export function Call() {
         refreshCall.current();
         break;
       case CALL_EVENT.MESSAGE:
-        setMessages((current) =>
-          current.some((message) => message.id === event.data.id)
-            ? current
-            : [...current, event.data],
-        );
+        if (messageIds.current.has(String(event.data.id))) break;
+        messageIds.current.add(String(event.data.id));
+        setMessages((current) => [...current, event.data]);
+        if (event.data.user_id !== user?.id && !chatOpenRef.current) {
+          setUnreadCount((count) => count + 1);
+          setChatNotice({ id: String(event.data.id), name: event.data.name, text: event.data.text });
+        }
+        break;
+      case CALL_EVENT.MESSAGE_TRANSLATION:
+        setMessages((current) => current.map((message) =>
+          String(message.id) === event.data.message_id
+            ? {
+                ...message,
+                translation_status: event.data.status,
+                translated_text: event.data.status === "ready" ? event.data.text : undefined,
+                translated_language: event.data.language,
+              }
+            : message,
+        ));
+        if (event.data.status === "ready") {
+          setChatNotice((current) => current?.id === event.data.message_id
+            ? { ...current, text: event.data.text }
+            : current);
+        }
         break;
       case CALL_EVENT.MUTE_STATE:
         setMuteStates((current) => {
@@ -415,7 +460,7 @@ export function Call() {
               </section>
               <ChatPanel
                 open={chatOpen}
-                onClose={() => setChatOpen(false)}
+                onClose={closeChat}
                 messages={messages}
                 currentUserId={user?.id}
                 connectionStatus={socket.status}
@@ -427,7 +472,10 @@ export function Call() {
       </main>
       <CallControls
         chatOpen={chatOpen}
-        onChatToggle={() => setChatOpen((open) => !open)}
+        unreadCount={unreadCount}
+        chatNotice={chatNotice}
+        onChatToggle={() => chatOpen ? closeChat() : openChat()}
+        onChatNoticeDismiss={() => setChatNotice(null)}
         onEnd={() => dialog.current?.showModal()}
         onLanguageChange={(patch) => void updateLanguages(patch)}
         onMuteChange={async (muted) => {
