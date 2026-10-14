@@ -27,6 +27,7 @@ func TestTranslateTextDeveloperAPI(t *testing.T) {
 					Text string `json:"text"`
 				} `json:"parts"`
 			} `json:"contents"`
+			GenerationConfig map[string]any `json:"generationConfig"`
 		}
 		if err := json.NewDecoder(r.Body).Decode(&body); err != nil {
 			t.Errorf("decode request: %v", err)
@@ -37,12 +38,18 @@ func TestTranslateTextDeveloperAPI(t *testing.T) {
 		if len(body.SystemInstruction.Parts) != 1 || !strings.Contains(body.SystemInstruction.Parts[0].Text, "pt-BR") {
 			t.Errorf("unexpected translation instruction: %+v", body.SystemInstruction)
 		}
+		if _, ok := body.GenerationConfig["thinkingConfig"]; ok {
+			t.Error("text request must not set unsupported thinkingConfig")
+		}
 		_, _ = w.Write([]byte(`{"candidates":[{"content":{"parts":[{"text":"Olá, Ada"}]}}]}`))
 	}))
 	defer server.Close()
 	service, err := NewGeminiService(Config{Provider: ProviderGemini, GeminiAPIKey: "test-key", GeminiTextEndpoint: server.URL})
 	if err != nil {
 		t.Fatal(err)
+	}
+	if service.textModel != DefaultTextTranslationModel {
+		t.Fatalf("text model = %q, want %q", service.textModel, DefaultTextTranslationModel)
 	}
 	result, err := service.TranslateText(context.Background(), TextRequest{Text: "Hello, Ada", SourceLanguage: LanguageEnglish, TargetLanguage: LanguagePortuguese})
 	if err != nil || result != "Olá, Ada" {
@@ -56,6 +63,7 @@ func TestTranslateTextVertexAuthenticationAndFailure(t *testing.T) {
 			t.Errorf("unexpected authentication headers")
 		}
 		w.WriteHeader(http.StatusTooManyRequests)
+		_, _ = w.Write([]byte(`{"error":{"status":"RESOURCE_EXHAUSTED","message":"quota exceeded"}}`))
 	}))
 	defer server.Close()
 	service := &GeminiTranslationService{
@@ -65,8 +73,20 @@ func TestTranslateTextVertexAuthenticationAndFailure(t *testing.T) {
 		},
 	}
 	_, err := service.TranslateText(context.Background(), TextRequest{Text: "Olá", SourceLanguage: LanguagePortuguese, TargetLanguage: LanguageEnglish})
-	if err == nil || !strings.Contains(err.Error(), "429") {
+	if err == nil || !strings.Contains(err.Error(), "429") || !strings.Contains(err.Error(), "quota exceeded") {
 		t.Fatalf("expected upstream status, got %v", err)
+	}
+}
+
+func TestTextTranslationModelCanBeOverridden(t *testing.T) {
+	service, err := NewGeminiService(Config{
+		Provider: ProviderGemini, GeminiAPIKey: "test-key", TextTranslationModel: "gemini-3.8-flash",
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !strings.Contains(service.textEndpoint, "/models/gemini-3.8-flash:generateContent") {
+		t.Fatalf("text endpoint = %q", service.textEndpoint)
 	}
 }
 

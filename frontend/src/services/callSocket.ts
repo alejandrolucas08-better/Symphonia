@@ -2,6 +2,7 @@ import type { Call, CallParticipant } from "../types/call";
 import type { LanguageCode } from "../types/demo";
 import {
   CALL_EVENT,
+  MAX_CHAT_CHARACTERS,
   type CallEventType,
   type CallSocketStatus,
   type ClientCallEnvelope,
@@ -214,7 +215,7 @@ export class CallSocket {
 
   sendChat(text: string): boolean {
     const clean = text.trim();
-    if (!clean || clean.length > 1000)
+    if (!clean || Array.from(clean).length > MAX_CHAT_CHARACTERS)
       return false;
     return this.send({ type: CALL_EVENT.MESSAGE, data: { text: clean } });
   }

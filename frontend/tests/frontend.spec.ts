@@ -518,6 +518,39 @@ test("chat drawer scrolls independently, keeps the composer visible and preserve
   await expect(input).toHaveValue("");
 });
 
+test("chat composer inserts a newline with Shift+Enter and sends with Enter", async ({ page }) => {
+  await page.goto("/call/demo-room");
+  await page.getByRole("button", { name: "Abrir chat" }).click();
+  const composer = page.getByLabel("Mensagem", { exact: true });
+  await composer.fill("Primeira linha");
+  await composer.press("Shift+Enter");
+  await expect(composer).toHaveValue("Primeira linha\n");
+  await expect(page.getByRole("log").locator(".chat-message")).toHaveCount(0);
+  await composer.pressSequentially("Segunda linha");
+  await composer.press("Enter");
+  await expect(composer).toHaveValue("");
+  await expect.poll(() => page.getByRole("log").locator(".chat-message > div").last().textContent())
+    .toBe("Primeira linha\nSegunda linha");
+});
+
+test("chat explains the 1000-character limit and counts Unicode characters", async ({ page }) => {
+  await page.goto("/call/demo-room");
+  await page.getByRole("button", { name: "Abrir chat" }).click();
+  const composer = page.getByLabel("Mensagem", { exact: true });
+  await composer.fill("a".repeat(1001));
+  await expect(composer).toHaveValue("a".repeat(1000));
+  await expect(page.getByText("1000 / 1000 caracteres")).toBeVisible();
+  await expect(page.getByRole("status").filter({ hasText: "Limite atingido" })).toBeVisible();
+  await composer.press("Backspace");
+  await expect(page.getByText("999 / 1000 caracteres")).toBeVisible();
+  await expect(page.getByRole("status").filter({ hasText: "Limite atingido" })).toHaveCount(0);
+  await composer.fill("😀".repeat(1000));
+  await expect(page.getByText("1000 / 1000 caracteres")).toBeVisible();
+  await composer.press("Enter");
+  await expect(composer).toHaveValue("");
+  await expect(page.getByRole("log").locator(".chat-message")).toHaveCount(1);
+});
+
 test("chat translates incoming text and notifies only while closed", async ({ page }) => {
   await page.goto("/call/demo-room");
   await expect(page.getByText("conectado").first()).toBeVisible();

@@ -4,6 +4,7 @@ import type {
   CallSocketStatus,
   RealtimeMessage,
 } from "../../types/realtime";
+import { MAX_CHAT_CHARACTERS } from "../../types/realtime";
 
 function statusLabel(status: CallSocketStatus) {
   if (status === "joined") return "conectado";
@@ -28,10 +29,13 @@ export function ChatPanel({
   onClose: () => void;
 }) {
   const [text, setText] = useState("");
+  const composer = useRef<HTMLTextAreaElement>(null);
   const list = useRef<HTMLDivElement>(null);
   const dialog = useRef<HTMLDialogElement>(null);
   const followLatest = useRef(true);
   const [sendError, setSendError] = useState("");
+  const characterCount = Array.from(text).length;
+  const limitReached = characterCount >= MAX_CHAT_CHARACTERS;
 
   useEffect(() => {
     if (open) dialog.current?.showModal();
@@ -41,6 +45,12 @@ export function ChatPanel({
   useEffect(() => {
     if (list.current && followLatest.current) list.current.scrollTop = list.current.scrollHeight;
   }, [messages, open]);
+
+  useEffect(() => {
+    if (!composer.current) return;
+    composer.current.style.height = "auto";
+    composer.current.style.height = `${Math.min(composer.current.scrollHeight, 120)}px`;
+  }, [text, open]);
 
   return (
     <dialog ref={dialog} id="call-chat" className="chat-drawer" aria-label="Chat da reunião"
@@ -110,12 +120,19 @@ export function ChatPanel({
         <label htmlFor="chat-message" className="sr-only">
           Mensagem
         </label>
-        <input
+        <textarea
+          ref={composer}
           id="chat-message"
           placeholder="escreva uma mensagem"
           value={text}
-          onChange={(event) => setText(event.target.value)}
-          maxLength={1000}
+          onChange={(event) => setText(Array.from(event.target.value).slice(0, MAX_CHAT_CHARACTERS).join(""))}
+          onKeyDown={(event) => {
+            if (event.key === "Enter" && !event.shiftKey && !event.nativeEvent.isComposing) {
+              event.preventDefault();
+              event.currentTarget.form?.requestSubmit();
+            }
+          }}
+          rows={1}
           autoComplete="off"
         />
         <button
@@ -127,6 +144,12 @@ export function ChatPanel({
           <Send size={18} />
         </button>
       </form>
+      <div className="chat-compose-meta">
+        <span role="status">
+          {limitReached && "Limite atingido. Apague parte da mensagem para continuar."}
+        </span>
+        <span>{characterCount} / {MAX_CHAT_CHARACTERS} caracteres</span>
+      </div>
     </section>
     </dialog>
   );

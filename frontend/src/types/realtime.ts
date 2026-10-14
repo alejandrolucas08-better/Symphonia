@@ -1,6 +1,8 @@
 import type { Call, CallParticipant } from "./call";
 import type { LanguageCode } from "./demo";
 
+export const MAX_CHAT_CHARACTERS = 1000;
+
 export const CALL_EVENT = {
   JOIN_CALL: "join_call",
   PARTICIPANT_JOINED: "participant_joined",

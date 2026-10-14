@@ -14,7 +14,7 @@ tom PCM para validar o fluxo sem serviços externos. Para usar Gemini, configure
 TRANSLATION_PROVIDER=gemini
 GOOGLE_CLOUD_PROJECT=<seu-projeto>
 TRANSLATION_MODEL=gemini-3.5-live-translate-preview
-TEXT_TRANSLATION_MODEL=gemini-2.5-flash
+TEXT_TRANSLATION_MODEL=gemini-3.5-flash-lite
 ```
 
 O projeto seleciona Vertex com ADC e tem precedência sobre qualquer API key.
@@ -93,7 +93,7 @@ setup por até 10 segundos; depois disso a conexão permanece aberta durante pau
 - O chat envia imediatamente a mensagem original aos dois participantes. Se o
   idioma falado pelo remetente for diferente do idioma ouvido pelo destinatário,
   o Gemini traduz o texto em segundo plano com `TEXT_TRANSLATION_MODEL`
-  (`gemini-2.5-flash` por padrão). A tradução chega apenas ao destinatário, que
+  (`gemini-3.5-flash-lite` por padrão). A tradução chega apenas ao destinatário, que
   continua podendo ver o original. Usa a mesma chave Gemini ou credenciais
   Vertex configuradas para a tradução de áudio. Em modo `mock`, ou se a API
   falhar, o original permanece visível com aviso de tradução indisponível.

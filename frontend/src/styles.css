@@ -1322,10 +1322,11 @@ main:focus {
   min-height: 0;
 }
 .chat-drawer .panel-heading,
-.chat-drawer .chat-form {
+.chat-drawer .chat-form,
+.chat-drawer .chat-compose-meta {
   flex-shrink: 0;
 }
-.chat-form input {
+.chat-form textarea {
   min-width: 0;
 }
 .chat-form button {
@@ -1392,15 +1393,40 @@ main:focus {
 }
 .chat-form {
   display: flex;
+  align-items: flex-end;
   gap: 8px;
   border-bottom: 1px solid var(--line);
   margin-top: 8px;
 }
-.chat-form input {
+.chat-form textarea {
+  flex: 1;
   border: 0;
   background: transparent;
   font-size: 15px;
   width: 100%;
+  min-height: 40px;
+  max-height: 120px;
+  padding: 8px 0;
+  line-height: 1.5;
+  resize: none;
+  overflow-y: auto;
+}
+.chat-compose-meta {
+  display: flex;
+  justify-content: space-between;
+  gap: 12px;
+  min-height: 24px;
+  padding-top: 4px;
+  color: var(--text-secondary);
+  font-size: 12px;
+  line-height: 1.4;
+}
+.chat-compose-meta span:first-child {
+  flex: 1;
+  color: var(--error);
+}
+.chat-compose-meta span:last-child {
+  white-space: nowrap;
 }
 .call-controls {
   position: fixed;
@@ -2258,7 +2284,7 @@ main:focus {
     flex: none;
     height: 200px;
   }
-  .chat-form input {
+  .chat-form textarea {
     font-size: 17px;
   }
   .controls-inner {
