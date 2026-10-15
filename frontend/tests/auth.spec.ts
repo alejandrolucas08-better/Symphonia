@@ -2,6 +2,7 @@ import { test, expect } from "@playwright/test";
 import {
   defaultUser,
   mockAuthenticated,
+  mockCallApi,
   mockLogin,
   mockRegister,
   token,
@@ -54,6 +55,17 @@ test("login: credenciais válidas entram em /home", async ({ page }) => {
     "ANA SOUZA.",
   );
   await expect(page.locator(".account-name")).toHaveText("Ana Souza");
+});
+
+test("convite retorna à configuração da sala depois do login", async ({ page }) => {
+  await mockLogin(page);
+  await mockCallApi(page);
+  await page.goto("/call/equipe-42/setup");
+  await expect(page).toHaveURL(/\/login$/);
+  await page.getByLabel("email", { exact: true }).fill("ana@example.com");
+  await page.getByLabel("senha", { exact: true }).fill("secret-123");
+  await page.getByRole("button", { name: "Entrar", exact: true }).click();
+  await expect(page).toHaveURL(/\/call\/equipe-42\/setup$/);
 });
 
 test("login: credenciais inválidas exibem erro", async ({ page }) => {

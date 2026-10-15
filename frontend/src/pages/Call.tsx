@@ -1,11 +1,12 @@
 import { useEffect, useRef, useState } from "react";
-import { Pause, Play, PhoneOff } from "lucide-react";
+import { Pause, Play, PhoneOff, Share2 } from "lucide-react";
 import { useNavigate, useParams } from "react-router-dom";
 import { AppHeader } from "../components/layout/AppHeader";
 import { Participant } from "../components/call/Participant";
 import { Transcript } from "../components/call/Transcript";
 import { ChatPanel } from "../components/call/ChatPanel";
 import { CallControls } from "../components/call/CallControls";
+import { InviteDialog } from "../components/call/InviteDialog";
 import { Button } from "../components/ui/Button";
 import { StatusBadge } from "../components/ui/StatusBadge";
 import { initialsFor } from "../components/ui/Avatar";
@@ -37,6 +38,7 @@ export function Call() {
   const [seconds, setSeconds] = useState(0);
   const [messages, setMessages] = useState<RealtimeMessage[]>([]);
   const [chatOpen, setChatOpen] = useState(false);
+  const [inviteOpen, setInviteOpen] = useState(false);
   const [unreadCount, setUnreadCount] = useState(0);
   const [chatNotice, setChatNotice] = useState<{ id: string; name: string; text: string } | null>(null);
   const [muteStates, setMuteStates] = useState<Map<number, boolean>>(new Map());
@@ -345,9 +347,20 @@ export function Call() {
       />
       <main id="main-content" className="container call-main">
         <div className="call-topline">
-          <h1>
-            Daily meeting <span className="room-code">/ {call.code}</span>
-          </h1>
+          <div className="call-title">
+            <h1>Daily meeting</h1>
+            <button
+              className="room-invite-trigger"
+              type="button"
+              aria-label={`Convidar para a sala ${call.code}`}
+              title="Convidar para a sala"
+              aria-haspopup="dialog"
+              onClick={() => setInviteOpen(true)}
+            >
+              <span>/ {call.code}</span>
+              <Share2 size={16} />
+            </button>
+          </div>
           <div className="call-clock">
             <span>
               {String(Math.floor(seconds / 60)).padStart(2, "0")}:
@@ -470,6 +483,11 @@ export function Call() {
           </div>
         )}
       </main>
+      <InviteDialog
+        code={call.code}
+        open={inviteOpen}
+        onClose={() => setInviteOpen(false)}
+      />
       <CallControls
         chatOpen={chatOpen}
         unreadCount={unreadCount}

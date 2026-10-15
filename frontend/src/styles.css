@@ -1106,10 +1106,33 @@ main:focus {
   font-size: 17px;
   line-height: 1.6;
 }
-.call-topline h1 .room-code {
+.call-title {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  min-width: 0;
+}
+.room-invite-trigger {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  min-width: 0;
+  padding: 6px 9px;
   color: var(--text-secondary);
-  margin-left: 16px;
   font-size: 15px;
+  border: 1px solid transparent;
+  border-radius: 4px;
+}
+.room-invite-trigger span {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.room-invite-trigger:hover,
+.room-invite-trigger:focus-visible {
+  color: var(--primary);
+  background: var(--background);
+  border-color: var(--line);
 }
 .call-clock {
   display: flex;
@@ -1581,6 +1604,115 @@ main:focus {
 .language-popover .panel-heading {
   margin-bottom: 16px;
 }
+.invite-dialog {
+  width: 620px;
+  max-width: calc(100% - 32px);
+  padding: 24px;
+  color: var(--text);
+  background: var(--surface);
+  border: 1px solid var(--line);
+  border-radius: 8px;
+}
+.invite-dialog::backdrop {
+  background: rgb(32 39 43 / 45%);
+}
+.invite-heading {
+  align-items: flex-start;
+  margin-bottom: 24px;
+}
+.invite-heading h2 {
+  margin-top: 7px;
+  font-size: 23px;
+  font-weight: 400;
+}
+.invite-content {
+  display: grid;
+  grid-template-columns: 216px minmax(0, 1fr);
+  gap: 28px;
+  align-items: center;
+}
+.invite-qr {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 12px;
+  padding: 16px;
+  background: white;
+  border: 1px solid var(--line);
+}
+.invite-qr svg {
+  display: block;
+  width: 184px;
+  height: 184px;
+}
+.invite-qr > span,
+.invite-label {
+  color: var(--text-secondary);
+  font-size: 12px;
+}
+.invite-details {
+  min-width: 0;
+}
+.invite-code-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  min-height: 54px;
+  margin: 6px 0 20px;
+  padding-bottom: 8px;
+  border-bottom: 1px solid var(--line);
+}
+.invite-code-row strong {
+  min-width: 0;
+  overflow-wrap: anywhere;
+  color: var(--primary);
+  font-size: 25px;
+  font-weight: 500;
+}
+.invite-url {
+  min-height: 42px;
+  margin-top: 7px;
+  color: var(--text-secondary);
+  font-size: 12px;
+  line-height: 1.5;
+  overflow-wrap: anywhere;
+}
+.invite-actions {
+  display: flex;
+  gap: 8px;
+  margin-top: 14px;
+}
+.invite-actions .button {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 7px;
+  padding-inline: 12px;
+  font-size: 15px;
+  white-space: nowrap;
+}
+.invite-share-button {
+  color: white;
+  background: var(--primary);
+  border-color: var(--primary);
+}
+.invite-share-button:hover {
+  color: white;
+  background: #24556b;
+}
+.invite-feedback {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  min-height: 24px;
+  margin-top: 8px;
+  color: var(--success);
+  font-size: 12px;
+}
+.invite-feedback-error {
+  color: var(--error);
+}
 .end-dialog {
   width: 420px;
   max-width: calc(100% - 32px);
@@ -1857,10 +1989,6 @@ main:focus {
   }
   .controls-caption {
     display: none;
-  }
-  .call-topline h1 .room-code {
-    display: block;
-    margin-left: 0;
   }
 }
 @media (max-width: 600px) {
@@ -2234,6 +2362,13 @@ main:focus {
     min-height: 72px;
     gap: 12px;
   }
+  .call-title {
+    display: block;
+  }
+  .room-invite-trigger {
+    max-width: 210px;
+    margin-left: -9px;
+  }
   .call-grid {
     grid-template-columns: 1fr;
     min-height: 0;
@@ -2320,6 +2455,24 @@ main:focus {
   }
   .end-dialog {
     padding: 24px;
+  }
+  .invite-dialog {
+    padding: 20px;
+  }
+  .invite-content {
+    grid-template-columns: 1fr;
+    gap: 20px;
+  }
+  .invite-qr {
+    width: 216px;
+    margin-inline: auto;
+  }
+  .invite-actions {
+    flex-wrap: wrap;
+  }
+  .invite-actions .button {
+    flex: 1;
+    min-width: 130px;
   }
   .end-dialog h2 {
     font-size: 20px;

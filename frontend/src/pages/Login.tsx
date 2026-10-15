@@ -1,15 +1,18 @@
 import { useState } from "react";
 import { ArrowUpRight } from "lucide-react";
-import { Link, useNavigate } from "react-router-dom";
+import { Link, useLocation, useNavigate } from "react-router-dom";
 import { AuthLayout } from "../components/layout/AuthLayout";
 import { useAuth } from "../hooks/useAuth";
 import { userFacingError } from "../services/api";
+import { safeReturnTo } from "../utils/navigation";
 
 export function Login() {
   const navigate = useNavigate();
+  const location = useLocation();
   const { login } = useAuth();
   const [error, setError] = useState("");
   const [submitting, setSubmitting] = useState(false);
+  const returnTo = safeReturnTo(location.state);
 
   return (
     <AuthLayout title="entre na sua" emphasis="CONTA.">
@@ -25,7 +28,7 @@ export function Login() {
               email: String(data.get("email") ?? ""),
               password: String(data.get("password") ?? ""),
             });
-            navigate("/home");
+            navigate(returnTo, { replace: true });
           } catch (err) {
             setError(userFacingError(err));
           } finally {
@@ -76,7 +79,7 @@ export function Login() {
       <p className="auth-switch">
         ainda não possui conta?
         <br />
-        <Link to="/register">
+        <Link to="/register" state={{ returnTo }}>
           criar conta <ArrowUpRight size={15} />
         </Link>
       </p>

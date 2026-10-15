@@ -161,6 +161,47 @@ test("registration validation, create call, preferences, chat and end", async ({
   await expect(page).toHaveURL(/\/home$/);
 });
 
+test("call invitation shows its code and QR, then copies the setup link", async ({ page }, info) => {
+  await page.addInitScript(() => {
+    Object.defineProperty(navigator, "share", {
+      configurable: true,
+      value: undefined,
+    });
+    Object.defineProperty(navigator, "clipboard", {
+      configurable: true,
+      value: {
+        writeText: async (value: string) => {
+          Object.defineProperty(window, "__copiedInvite", {
+            configurable: true,
+            value,
+          });
+        },
+      },
+    });
+  });
+  await page.goto("/call/demo-room");
+  await page.getByRole("button", { name: "Convidar para a sala demo-room" }).click();
+  const dialog = page.getByRole("dialog", { name: "Compartilhe a conversa." });
+  await expect(dialog).toBeVisible();
+  await expect(dialog.getByText("demo-room", { exact: true })).toBeVisible();
+  await expect(dialog.getByLabel("QR Code do convite")).toBeVisible();
+  await page.screenshot({
+    path: info.outputPath("invite.png"),
+    fullPage: true,
+    animations: "disabled",
+  });
+  await dialog.getByRole("button", { name: "Copiar link" }).click();
+  await expect(dialog.getByRole("status")).toContainText("Link do convite copiado");
+  await expect.poll(() => page.evaluate(() =>
+    (window as Window & { __copiedInvite?: string }).__copiedInvite,
+  )).toBe("http://127.0.0.1:5173/call/demo-room/setup");
+  await dialog.getByRole("button", { name: "Fechar convite" }).click();
+  await expect(dialog).not.toBeVisible();
+  await expect(
+    page.getByRole("button", { name: "Convidar para a sala", exact: true }),
+  ).toHaveCount(0);
+});
+
 test("login, join validation and deep-link reload", async ({ page }) => {
   await mockLogin(page);
   await page.goto("/login");
