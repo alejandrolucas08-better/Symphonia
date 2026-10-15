@@ -1,22 +1,30 @@
 import { useState } from "react";
 import { ArrowUpRight } from "lucide-react";
-import { Link, useLocation, useNavigate } from "react-router-dom";
+import { Link, useLocation } from "react-router-dom";
 import { AuthLayout } from "../components/layout/AuthLayout";
+import { GoogleSignIn } from "../components/auth/GoogleSignIn";
 import { useAuth } from "../hooks/useAuth";
 import { userFacingError } from "../services/api";
 import { safeReturnTo } from "../utils/navigation";
 
 export function Register() {
-  const navigate = useNavigate();
   const location = useLocation();
   const { register } = useAuth();
   const [error, setError] = useState("");
   const [submitting, setSubmitting] = useState(false);
+  const [sentTo, setSentTo] = useState("");
   const returnTo = safeReturnTo(location.state);
 
   return (
     <AuthLayout title="a conversa" emphasis="COMEÇA AQUI.">
       <p className="eyebrow form-kicker">UM NOVO JEITO DE SE CONECTAR.</p>
+      {sentTo ? (
+        <div className="auth-result" role="status">
+          <h2>Confira seu e-mail</h2>
+          <p>Enviamos um link de confirmação para {sentTo}.</p>
+          <Link to="/resend-verification">Reenviar confirmação</Link>
+        </div>
+      ) : (
       <form
         onSubmit={async (event) => {
           event.preventDefault();
@@ -38,7 +46,7 @@ export function Register() {
               email: String(data.get("email") ?? ""),
               password: String(data.get("password") ?? ""),
             });
-            navigate(returnTo, { replace: true });
+            setSentTo(String(data.get("email") ?? ""));
           } catch (err) {
             setError(userFacingError(err));
           } finally {
@@ -112,6 +120,8 @@ export function Register() {
           </span>
         </button>
       </form>
+      )}
+      {!sentTo && <GoogleSignIn returnTo={returnTo} />}
       <p className="auth-switch">
         já possui conta?
         <br />

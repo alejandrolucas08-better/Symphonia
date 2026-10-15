@@ -42,7 +42,13 @@ func main() {
 	}
 
 	userRepo := user.NewRepository(pool)
-	authHandler := auth.NewHandler(userRepo)
+	authStore := auth.NewStore(pool)
+	publicURL := os.Getenv("APP_PUBLIC_URL")
+	if publicURL == "" && os.Getenv("APP_ENV") != "production" {
+		publicURL = "http://localhost:5173"
+	}
+	authHandler := auth.NewHandler(userRepo, authStore, auth.MailerFromEnv(), publicURL)
+	googleOAuth := auth.NewGoogleOAuth(authStore, publicURL)
 	callRepo := call.NewRepository(pool)
 	hub := ws.NewHub()
 
@@ -55,19 +61,33 @@ func main() {
 	opener, _ := translator.(translation.SessionOpener)
 	callHandler := call.NewHandler(callRepo, hub)
 	websocketHandler := ws.NewHandler(callRepo, hub, opener)
+	websocketHandler.SetSessionValidator(func(ctx context.Context, token string) (int64, error) {
+		return auth.ValidateSession(ctx, authStore, token)
+	})
+	requireAuth := auth.MiddlewareWithStore(authStore)
 
 	mux := http.NewServeMux()
 	mux.HandleFunc("GET /healthz", appserver.HealthHandler(pool.Ping))
 	mux.HandleFunc("POST /api/register", authHandler.Register)
 	mux.HandleFunc("POST /api/login", authHandler.Login)
-	mux.HandleFunc("GET /api/session", auth.Chain(authHandler.Session, auth.Middleware))
-	mux.HandleFunc("POST /api/calls", auth.Chain(callHandler.Create, auth.Middleware))
-	mux.HandleFunc("GET /api/calls/{code}", auth.Chain(callHandler.Get, auth.Middleware))
-	mux.HandleFunc("GET /api/calls/{code}/status", auth.Chain(callHandler.Get, auth.Middleware))
-	mux.HandleFunc("POST /api/calls/{code}/join", auth.Chain(callHandler.Join, auth.Middleware))
-	mux.HandleFunc("PATCH /api/calls/{code}/language", auth.Chain(callHandler.UpdateLanguage, auth.Middleware))
-	mux.HandleFunc("POST /api/calls/{code}/leave", auth.Chain(callHandler.Leave, auth.Middleware))
-	mux.HandleFunc("POST /api/calls/{code}/end", auth.Chain(callHandler.End, auth.Middleware))
+	mux.HandleFunc("POST /api/auth/resend-verification", authHandler.ResendVerification)
+	mux.HandleFunc("POST /api/auth/verify-email", authHandler.VerifyEmail)
+	mux.HandleFunc("POST /api/auth/forgot-password", authHandler.ForgotPassword)
+	mux.HandleFunc("POST /api/auth/reset-password", authHandler.ResetPassword)
+	mux.HandleFunc("POST /api/auth/change-password", requireAuth(authHandler.ChangePassword))
+	mux.HandleFunc("GET /api/auth/providers", googleOAuth.Providers)
+	mux.HandleFunc("GET /api/auth/google/start", googleOAuth.Start)
+	mux.HandleFunc("POST /api/auth/google/link/start", requireAuth(googleOAuth.StartLink))
+	mux.HandleFunc("GET /api/auth/google/callback", googleOAuth.Callback)
+	mux.HandleFunc("POST /api/auth/google/finish", authHandler.FinishGoogle)
+	mux.HandleFunc("GET /api/session", requireAuth(authHandler.Session))
+	mux.HandleFunc("POST /api/calls", requireAuth(callHandler.Create))
+	mux.HandleFunc("GET /api/calls/{code}", requireAuth(callHandler.Get))
+	mux.HandleFunc("GET /api/calls/{code}/status", requireAuth(callHandler.Get))
+	mux.HandleFunc("POST /api/calls/{code}/join", requireAuth(callHandler.Join))
+	mux.HandleFunc("PATCH /api/calls/{code}/language", requireAuth(callHandler.UpdateLanguage))
+	mux.HandleFunc("POST /api/calls/{code}/leave", requireAuth(callHandler.Leave))
+	mux.HandleFunc("POST /api/calls/{code}/end", requireAuth(callHandler.End))
 	mux.Handle("GET /api/calls/{code}/ws", websocketHandler)
 	if directory := os.Getenv("FRONTEND_DIST"); directory != "" {
 		static, err := appserver.StaticHandler(directory)

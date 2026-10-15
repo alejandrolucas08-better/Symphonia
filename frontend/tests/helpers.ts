@@ -6,6 +6,9 @@ export type MockUser = {
   name: string;
   email: string;
   created_at: string;
+  email_verified: boolean;
+  has_password: boolean;
+  google_linked: boolean;
 };
 
 export const defaultUser: MockUser = {
@@ -13,6 +16,9 @@ export const defaultUser: MockUser = {
   name: "Ana Souza",
   email: "ana@example.com",
   created_at: "2026-01-01T00:00:00Z",
+  email_verified: true,
+  has_password: true,
+  google_linked: false,
 };
 
 export const token = "test-token";
@@ -177,9 +183,13 @@ export async function mockRegister(
   }: { status?: number; user?: MockUser; error?: string } = {},
 ) {
   await page.route("**/api/register", (route) =>
-    json(route, status, error ? { error } : user, {
-      Authorization: `Bearer ${token}`,
-    }),
+    json(route, status, error ? { error } : { message: "verification email sent", email: user.email }),
+  );
+}
+
+export async function mockVerifyEmail(page: Page, user: MockUser = defaultUser) {
+  await page.route("**/api/auth/verify-email", (route) =>
+    json(route, 200, user, { Authorization: `Bearer ${token}` }),
   );
 }
 

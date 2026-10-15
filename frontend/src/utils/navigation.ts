@@ -5,6 +5,7 @@ export function safeReturnTo(state: unknown, fallback = "/home"): string {
     typeof returnTo !== "string" ||
     !returnTo.startsWith("/") ||
     returnTo.startsWith("//") ||
+    returnTo.startsWith("/\\") ||
     returnTo === "/login" ||
     returnTo === "/register"
   ) {

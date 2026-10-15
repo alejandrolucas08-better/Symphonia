@@ -2,6 +2,7 @@ import { useState } from "react";
 import { ArrowUpRight } from "lucide-react";
 import { Link, useLocation, useNavigate } from "react-router-dom";
 import { AuthLayout } from "../components/layout/AuthLayout";
+import { GoogleSignIn } from "../components/auth/GoogleSignIn";
 import { useAuth } from "../hooks/useAuth";
 import { userFacingError } from "../services/api";
 import { safeReturnTo } from "../utils/navigation";
@@ -14,9 +15,12 @@ export function Login() {
   const [submitting, setSubmitting] = useState(false);
   const returnTo = safeReturnTo(location.state);
 
+  const oauthError = new URLSearchParams(location.search).get("error");
+
   return (
     <AuthLayout title="entre na sua" emphasis="CONTA.">
       <p className="eyebrow form-kicker">BOM TER VOCÊ POR AQUI.</p>
+      {oauthError && <p className="error-message" role="alert">{oauthError === "google_email_exists" ? "Este e-mail já tem uma conta. Entre com sua senha e vincule o Google em Conta." : "Não foi possível entrar com Google. Tente novamente."}</p>}
       <form
         onSubmit={async (event) => {
           event.preventDefault();
@@ -76,6 +80,11 @@ export function Login() {
           </span>
         </button>
       </form>
+      <div className="auth-help-links">
+        <Link to="/forgot-password">Esqueceu a senha?</Link>
+        <Link to="/resend-verification">Reenviar confirmação</Link>
+      </div>
+      <GoogleSignIn returnTo={returnTo} />
       <p className="auth-switch">
         ainda não possui conta?
         <br />

@@ -1,6 +1,7 @@
 package auth
 
 import (
+	"context"
 	"crypto/hmac"
 	"crypto/sha256"
 	"encoding/base64"
@@ -24,8 +25,9 @@ const minSigningKeyBytes = 32
 const developmentSigningKey = "symphonia-dev-secret-change-in-production"
 
 type payload struct {
-	UserID int64 `json:"uid"`
-	Exp    int64 `json:"exp"`
+	UserID  int64 `json:"uid"`
+	Exp     int64 `json:"exp"`
+	Version int   `json:"ver"`
 }
 
 func signingKey() []byte {
@@ -51,9 +53,14 @@ func ValidateConfiguration() error {
 }
 
 func GenerateToken(userID int64) (string, error) {
+	return GenerateTokenVersion(userID, 0)
+}
+
+func GenerateTokenVersion(userID int64, version int) (string, error) {
 	p := payload{
-		UserID: userID,
-		Exp:    time.Now().Add(tokenLifetime).Unix(),
+		UserID:  userID,
+		Exp:     time.Now().Add(tokenLifetime).Unix(),
+		Version: version,
 	}
 
 	header := base64.RawURLEncoding.EncodeToString([]byte(`{"alg":"HS256","typ":"JWT"}`))
@@ -72,9 +79,29 @@ func GenerateToken(userID int64) (string, error) {
 }
 
 func ValidateToken(tokenStr string) (int64, error) {
+	p, err := validatePayload(tokenStr)
+	if err != nil {
+		return 0, err
+	}
+	return p.UserID, nil
+}
+
+func ValidateSession(ctx context.Context, store *Store, tokenStr string) (int64, error) {
+	p, err := validatePayload(tokenStr)
+	if err != nil {
+		return 0, err
+	}
+	version, err := store.SessionVersion(ctx, p.UserID)
+	if err != nil || version != p.Version {
+		return 0, ErrInvalidToken
+	}
+	return p.UserID, nil
+}
+
+func validatePayload(tokenStr string) (payload, error) {
 	parts := strings.Split(tokenStr, ".")
 	if len(parts) != 3 {
-		return 0, ErrInvalidToken
+		return payload{}, ErrInvalidToken
 	}
 
 	signing := hmac.New(sha256.New, signingKey())
@@ -82,26 +109,26 @@ func ValidateToken(tokenStr string) (int64, error) {
 	expected := base64.RawURLEncoding.EncodeToString(signing.Sum(nil))
 
 	if !hmac.Equal([]byte(parts[2]), []byte(expected)) {
-		return 0, ErrInvalidToken
+		return payload{}, ErrInvalidToken
 	}
 
 	body, err := base64.RawURLEncoding.DecodeString(parts[1])
 	if err != nil {
-		return 0, ErrInvalidToken
+		return payload{}, ErrInvalidToken
 	}
 
 	var p payload
 	if err := json.Unmarshal(body, &p); err != nil {
-		return 0, ErrInvalidToken
+		return payload{}, ErrInvalidToken
 	}
 
 	if time.Now().Unix() > p.Exp {
-		return 0, ErrInvalidToken
+		return payload{}, ErrInvalidToken
 	}
 
 	if p.UserID <= 0 {
-		return 0, ErrInvalidToken
+		return payload{}, ErrInvalidToken
 	}
 
-	return p.UserID, nil
+	return p, nil
 }

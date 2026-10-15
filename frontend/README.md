@@ -1,24 +1,29 @@
-# Symphonia frontend
+# Frontend do Symphonia
 
-## Browser audio
+Interface React + TypeScript + Vite. Para subir toda a aplicacao com PostgreSQL, backend e caixa de e-mail local, siga o [inicio rapido da raiz](../README.md). Este arquivo cobre apenas o trabalho no frontend.
 
-Calls capture the selected microphone with `getUserMedia` and an `AudioWorklet`. The public worklet downmixes and resamples the browser's actual audio-context rate to mono 16 kHz PCM, emitting 320-sample packets. The main thread adds the fixed 24-byte `SA` header and sends 664-byte binary WebSocket frames. Incoming valid PCM frames are played through Web Audio with a short bounded jitter schedule and the existing volume control.
+## Desenvolvimento
 
-The setup screen only requests microphone permission after an explicit action or when entering a call. Every temporary setup stream is stopped. If permission or device validation fails, the user can retry or explicitly enter in listen-only mode. AudioWorklet is required for capture; there is no MediaRecorder or lossy fallback.
+```powershell
+npm ci
+npm run dev
+```
 
-Append `?audioDiagnostics=1` to a call URL to expose `window.__symphoniaAudioDiagnostics` with outgoing/incoming frame counts and the live-track count. It never contains sample data.
+Execute os comandos em `frontend/`. O Vite abre em `http://localhost:5173` e encaminha `/api` e WebSocket ao backend em `http://127.0.0.1:8080`. Se o backend estiver em outra porta, defina `API_PROXY_TARGET` no processo do Vite. Fora do Docker, variaveis do `.env` da raiz nao sao carregadas automaticamente pelo Go nem pelo Vite.
 
-## Verification
+## Verificacao
 
-```bash
+```powershell
 npm run typecheck
 npm run build
+npx playwright install chromium
 npm run test:e2e
 ```
 
-The optional real-backend test launches Chromium with fake microphone input:
+Os testes Playwright comuns simulam respostas de API e nao exigem PostgreSQL ou Gemini. O cenario `tests/realtime-live.spec.ts` usa backend real, mas **ainda precisa ser adaptado ao cadastro com confirmacao de e-mail**; nao use seu resultado como validacao da feature nova. Veja [guia do frontend](../docs/frontend.md) para telas, audio, estrutura e testes.
 
-```bash
-LIVE_E2E=1 LIVE_API_ORIGIN=http://127.0.0.1:8080 \
-  npx playwright test tests/realtime-live.spec.ts --project=desktop
-```
+## Audio no navegador
+
+A captura pede permissao do microfone apenas durante o preparo/entrada na chamada. Um `AudioWorklet` converte o audio para PCM16 mono a 16 kHz e o envia em frames binarios de 20 ms; a traducao recebida tambem chega em PCM a 16 kHz. Para depuracao, acrescente `?audioDiagnostics=1` a URL da chamada e consulte `window.__symphoniaAudioDiagnostics` no console. Os contadores mostram frames enviados/recebidos e trilhas ativas, sem guardar amostras de audio.
+
+Microfone em outro dispositivo requer uma origem segura (HTTPS); abrir o Vite pelo IP da rede em HTTP costuma bloquear a captura. Consulte [deploy e teste em dispositivos](../docs/deploy.md).

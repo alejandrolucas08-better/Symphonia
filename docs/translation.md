@@ -1,14 +1,20 @@
 # Tradução de áudio em tempo real
 
-O backend oferece os providers `mock` e `gemini` através de
-`internal/translation`. `Service` suporta requisições completas; `SessionOpener`
-abre uma `LiveSession` para envio contínuo de áudio e recebimento de eventos.
-O provider Gemini usa `github.com/coder/websocket` diretamente.
+O Symphonia tem dois modos. Escolha antes de testar:
+
+| Modo | Quando usar | Resultado esperado |
+| --- | --- | --- |
+| `mock` (padrão) | Desenvolvimento sem credenciais ou teste de transporte | Frases fixas e um tom sintetizado; **não** traduz fala nem chat real. |
+| `gemini` | Teste de tradução real entre idiomas | Áudio traduzido e transcrições, sujeitos a credenciais, acesso ao modelo, latência e limites da API. |
+
+O backend implementa os dois em `internal/translation`. A tradução de voz usa
+uma sessão contínua; a de chat usa uma chamada separada ao modelo de texto.
+O navegador nunca recebe a chave Gemini. O login Google usa outro conjunto de
+credenciais, descrito em [contas](auth.md).
 
 ## Configuração
 
-O padrão continua sendo `TRANSLATION_PROVIDER=mock`, que emite frases fixas e um
-tom PCM para validar o fluxo sem serviços externos. Para usar Gemini, configure:
+Para usar Gemini em vez do padrão `TRANSLATION_PROVIDER=mock`, configure:
 
 ```dotenv
 TRANSLATION_PROVIDER=gemini
@@ -30,6 +36,10 @@ e use `docker compose -f docker-compose.yml -f docker-compose.adc.yml up --build
 O override monta o arquivo somente no backend como secret. Não versione credenciais.
 O backend rejeita a configuração sem projeto nem `GEMINI_API_KEY`.
 `TRANSLATION_MODEL` é opcional e usa o modelo acima por padrão.
+`TEXT_TRANSLATION_MODEL` é independente: controla somente a tradução de mensagens
+do chat. Se esse modelo não estiver disponível para sua conta/projeto, a voz
+pode funcionar enquanto o chat mostra "Tradução indisponível"; consulte o erro
+HTTP do backend antes de concluir que o WebSocket falhou.
 `GEMINI_LIVE_ENDPOINT` permite substituir o endpoint ao executar o backend
 diretamente, principalmente para testes locais. O endpoint padrão é:
 
@@ -47,6 +57,11 @@ modalidade de resposta, habilita transcrições de entrada/saída e configura
 Os idiomas mapeados são `PT-BR → pt-BR`, `EN-US → en`, `ES-ES → es` e `FR-FR → fr`.
 
 ## Fluxo WebSocket
+
+Exemplo: A fala e ouve `PT-BR`; B fala e ouve `EN-US`. Quando A fala, o destino
+da sessão é inglês; quando B fala, o destino é português. Se o idioma falado
+já coincide com o idioma ouvido pelo outro, o backend encaminha o áudio sem
+Gemini. Por isso, teste **as duas direções**.
 
 1. Os participantes autenticam e enviam `join_call` pelo protocolo existente.
 2. O hub valida o frame binário de áudio e descarta áudio de participantes mudos.
@@ -97,6 +112,9 @@ setup por até 10 segundos; depois disso a conexão permanece aberta durante pau
   continua podendo ver o original. Usa a mesma chave Gemini ou credenciais
   Vertex configuradas para a tradução de áudio. Em modo `mock`, ou se a API
   falhar, o original permanece visível com aviso de tradução indisponível.
+- Nem mensagens nem traduções do chat são persistidas. Recarregar a página
+  elimina o histórico local; a tradução assíncrona só chega ao participante
+  que continua conectado.
 - Falhas de abertura/envio são notificadas com `translation_unavailable`, sem
   retransmitir silenciosamente o áudio original. Aberturas têm intervalo mínimo
   de cinco segundos após falha de abertura; não há replay do áudio perdido.
@@ -130,20 +148,35 @@ Os testes cobrem setup/autenticação no servidor simulado, envio de áudio,
 transcrições, áudio traduzido, fechamento de sessão, encaminhamento direto e
 troca do idioma ouvido.
 
-## Fontes oficiais consultadas (17/09/2026)
+Para um teste manual real, configure `TRANSLATION_PROVIDER=gemini`, inicie o
+backend e confira no log `translation provider: gemini`. O health check confirma
+apenas o banco, não as credenciais Gemini: abra uma chamada com idiomas
+diferentes para iniciar uma sessão e observar erros. Use fones em dois aparelhos
+para evitar realimentação. Meça separadamente a latência PT→EN e EN→PT; a
+qualidade e o tempo de resposta do serviço não são garantidos pelos testes com
+servidor simulado.
 
+| Sintoma | Primeiro ponto a conferir |
+| --- | --- |
+| Som em forma de tom/zumbido | `TRANSLATION_PROVIDER=mock` ainda ativo. |
+| Áudio direto funciona, mas tradução não | Credenciais, acesso ao modelo e log `translation_unavailable`. |
+| Voz traduz, chat mostra indisponível | `TEXT_TRANSLATION_MODEL`, credenciais e código HTTP da chamada de texto. |
+| Microfone bloqueado no celular | Origem HTTPS e permissão do navegador; veja [deploy](deploy.md). |
+| Tradução para um idioma demora mais | Compare transcrições, latência da rede e resposta do provider nas duas direções; os testes locais não medem a API real. |
+
+## Referências oficiais
+
+- [Guia Gemini Live Translation](https://ai.google.dev/gemini-api/docs/live-api/live-translate)
+- [Ficha do modelo de tradução](https://ai.google.dev/gemini-api/docs/models/gemini-3.5-live-translate-preview)
 - [Modelo, idiomas, formatos e configuração](https://docs.cloud.google.com/gemini-enterprise-agent-platform/models/gemini/3-5-live-translate)
 - [WebSocket e OAuth](https://docs.cloud.google.com/gemini-enterprise-agent-platform/models/live-api/start-manage-session)
 - [Transporte do SDK Go](https://github.com/googleapis/go-genai/blob/main/live.go)
 - [Conversores oficiais do setup](https://github.com/googleapis/go-genai/blob/main/live_converters.go)
 
-Os conversores colocam `inputAudioTranscription` e `outputAudioTranscription`
-diretamente em `setup`, e `translationConfig` dentro de `generationConfig`.
-Mantemos o transporte `coder/websocket` para seus deadlines/cancelamento, sem
-copiar APIs hipotéticas do SDK. A página do modelo tem uma inconsistência:
-documenta `BidiGenerateContent`, mas sua tabela diz Live API não suportada.
-Os exemplos específicos e o protocolo oficial orientam esta integração; somente
-uma chamada autenticada real confirma acesso ao preview para o projeto.
+O código atual usa `coder/websocket` para o transporte. A configuração
+`translationConfig` vai em `generationConfig` durante o setup da sessão. Como
+o modelo é preview, consulte as referências oficiais para disponibilidade e
+limites atuais; somente uma conexão autenticada confirma o acesso do projeto.
 
 ### Validação português ↔ inglês
 

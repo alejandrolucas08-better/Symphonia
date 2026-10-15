@@ -904,6 +904,46 @@ main:focus {
   text-decoration: underline;
   text-underline-offset: 5px;
 }
+.auth-help-links {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: space-between;
+  gap: 12px;
+  margin-top: 20px;
+  font-size: 14px;
+}
+.auth-help-links a,
+.auth-result a,
+.account-page a {
+  color: var(--primary);
+  text-decoration: underline;
+  text-underline-offset: 4px;
+}
+.oauth-choice {
+  display: grid;
+  gap: 16px;
+  margin-top: 28px;
+  text-align: center;
+}
+.oauth-choice span { color: var(--text-secondary); font-size: 14px; }
+.oauth-button {
+  width: 100%;
+  min-height: 48px;
+  border: 1px solid var(--line);
+  background: transparent;
+  color: var(--text);
+  cursor: pointer;
+  font: inherit;
+}
+.oauth-button:hover,
+.oauth-button:focus-visible { border-color: var(--primary); color: var(--primary); }
+.auth-result h2 { font-size: 24px; margin-bottom: 12px; }
+.auth-result p { line-height: 1.6; overflow-wrap: anywhere; }
+.account-page { max-width: 700px; padding-top: 72px; padding-bottom: 96px; }
+.account-page h1 { font-size: 38px; margin: 12px 0; }
+.account-page form { max-width: 440px; margin-top: 36px; }
+.account-link-google { max-width: 440px; margin-top: 28px; }
+.account-provider-status { margin-top: 28px; color: var(--primary); }
 .error-message {
   color: #a83e3e;
   font-size: 16px;

@@ -23,6 +23,12 @@ services:
       PORT: "8080"
       DATABASE_URL: postgres://symphonia:${POSTGRES_PASSWORD}@postgres:5432/symphonia?sslmode=disable
       JWT_SECRET: ${JWT_SECRET:?Set JWT_SECRET}
+      APP_PUBLIC_URL: http://localhost:${DEPLOY_PORT:-8081}
+      SMTP_HOST: mailpit
+      SMTP_PORT: "1025"
+      EMAIL_FROM: Symphonia <no-reply@symphonia.local>
+      GOOGLE_OAUTH_CLIENT_ID: ${GOOGLE_OAUTH_CLIENT_ID:-}
+      GOOGLE_OAUTH_CLIENT_SECRET: ${GOOGLE_OAUTH_CLIENT_SECRET:-}
       TRANSLATION_PROVIDER: mock
       CORS_ALLOWED_ORIGINS: http://localhost:${DEPLOY_PORT:-8081},http://127.0.0.1:${DEPLOY_PORT:-8081}
       WS_ALLOWED_ORIGINS: http://localhost:${DEPLOY_PORT:-8081},http://127.0.0.1:${DEPLOY_PORT:-8081}
@@ -31,10 +37,16 @@ services:
     depends_on:
       postgres:
         condition: service_healthy
+      mailpit:
+        condition: service_started
     healthcheck:
       test: ["CMD", "wget", "-q", "--spider", "http://127.0.0.1:8080/healthz"]
       interval: 5s
       timeout: 3s
       retries: 12
+  mailpit:
+    image: axllent/mailpit:v1.27
+    ports:
+      - "127.0.0.1:18025:8025"
 volumes:
   deploy-postgres-data:

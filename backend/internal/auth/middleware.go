@@ -23,6 +23,18 @@ func UserIDFromContext(ctx context.Context) (int64, bool) {
 }
 
 func Middleware(next http.HandlerFunc) http.HandlerFunc {
+	return middleware(next, func(_ context.Context, token string) (int64, error) { return ValidateToken(token) })
+}
+
+func MiddlewareWithStore(store *Store) func(http.HandlerFunc) http.HandlerFunc {
+	return func(next http.HandlerFunc) http.HandlerFunc {
+		return middleware(next, func(ctx context.Context, token string) (int64, error) {
+			return ValidateSession(ctx, store, token)
+		})
+	}
+}
+
+func middleware(next http.HandlerFunc, validate func(context.Context, string) (int64, error)) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		auth := r.Header.Get("Authorization")
 		if auth == "" {
@@ -36,7 +48,7 @@ func Middleware(next http.HandlerFunc) http.HandlerFunc {
 			return
 		}
 
-		userID, err := ValidateToken(token)
+		userID, err := validate(r.Context(), token)
 		if err != nil {
 			writeJSON(w, http.StatusUnauthorized, map[string]string{"error": "invalid or expired token"})
 			return

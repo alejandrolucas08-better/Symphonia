@@ -1,226 +1,132 @@
 # Symphonia
 
-Symphonia is a web application for real-time communication between two people who speak different languages.
+O Symphonia conecta duas pessoas que falam idiomas diferentes em uma chamada de audio pelo navegador. O projeto inclui contas, salas com ate dois participantes, chat, transcricao e traducao de voz. A traducao real depende de credenciais e acesso ao Gemini; o modo `mock` serve apenas para testar o fluxo.
 
-The MVP goal is an audio call for up to two participants, with live speech transcription and translation.
+## Comece aqui
 
-The project includes backend authentication and calls, browser microphone capture and playback, and an authenticated WebSocket that streams PCM audio through Gemini Live Translate when the participants use different languages.
+**Caminho recomendado para desenvolvimento:** Docker Compose. Voce precisa de Docker com Compose e de um navegador recente. Node.js e Go so sao necessarios se quiser executar os servicos fora dos containers.
 
-## Stack
+1. Na raiz do repositorio, crie o arquivo local de configuracao:
 
-- Frontend: React, TypeScript, Vite, React Router, Lucide React
-- Backend: Go
-- Database: PostgreSQL
-- Real-time communication: WebSocket
-- Audio: Web Audio API / MediaStream
-- Translation: Gemini Live Translate
-- Development environment: Docker Compose
-
-## Project Structure
-
-```text
-symphonia/
-├── frontend/
-├── backend/
-├── docs/
-├── .env.example
-├── .gitignore
-├── README.md
-└── docker-compose.yml
-```
-
-## Requirements
-
-- Node.js 22 or newer
-- npm 12 or newer
-- Go 1.25 or newer
-- Docker and Docker Compose
-
-Go is only required when running the backend directly on the host. Docker can be used instead.
-
-## Environment
-
-Copy `.env.example` to `.env` and adjust values when needed.
-
-```bash
-cp .env.example .env
-```
-
-Set `JWT_SECRET` to a unique value of at least 32 bytes before starting the
-backend. Generate one locally, keep it only in `.env`, and rotate it if it is
-ever exposed:
-
-```powershell
-$bytes = [byte[]]::new(48)
-[System.Security.Cryptography.RandomNumberGenerator]::Fill($bytes)
-[Convert]::ToBase64String($bytes)
-```
-
-The Compose configuration exposes only the frontend to the LAN. PostgreSQL and
-the backend API bind to `127.0.0.1` on the host and remain available to the
-frontend through Docker's internal network.
-
-### Manual Gemini setup
-
-The following steps cannot be automated by the repository:
-
-1. Create or select a Google Cloud project, enable Vertex AI and grant the backend
-   identity access to the preview model `gemini-3.5-live-translate-preview`.
-   Model availability, billing and regional restrictions are controlled by Google.
-2. Use Application Default Credentials (ADC), via an attached service account,
-   `gcloud auth application-default login`, or a local credentials file. Configure:
-
-   ```dotenv
-   TRANSLATION_PROVIDER=gemini
-   GOOGLE_CLOUD_PROJECT=your-project
-   TRANSLATION_MODEL=gemini-3.5-live-translate-preview
+   ```powershell
+   if (-not (Test-Path .env)) { Copy-Item .env.example .env }
    ```
 
-3. For local Docker, set `GOOGLE_APPLICATION_CREDENTIALS` to the host credentials
-   path and use `docker compose -f docker-compose.yml -f docker-compose.adc.yml up --build`.
-   Alternatively, export the variables
-   in the shell that starts `go run ./cmd/server`. A successful backend startup
-   prints `translation provider: gemini`.
-4. Optionally validate ADC, model access and Live WebSocket handshake directly
-   from `backend/`. This test contacts Google and is skipped during normal tests:
+   Em macOS/Linux, use `test -e .env || cp .env.example .env`. **Nao sobrescreva um `.env` existente**: ele pode conter seus segredos e configuracoes locais. O arquivo `.env` nao deve ser versionado.
 
-   ```bash
-   GEMINI_LIVE_INTEGRATION=1 \
-   GOOGLE_CLOUD_PROJECT="your-project" \
-   go test ./internal/translation -run TestGeminiLiveIntegration -v
+2. Gere um `JWT_SECRET` exclusivo, com pelo menos 32 bytes, e coloque o resultado em `.env`:
+
+   ```powershell
+   $bytes = [byte[]]::new(48)
+   [System.Security.Cryptography.RandomNumberGenerator]::Fill($bytes)
+   [Convert]::ToBase64String($bytes)
    ```
 
-5. Open the same call as two different users, choose different spoken/heard
-   languages, allow microphone access and speak. For PT↔EN, configure A to speak/hear
-   Portuguese and B to speak/hear English. The listener receives 16 kHz binary
-   translated PCM (resampled from Gemini's 24 kHz); the call screen displays input
-   and output transcription events as they arrive.
+   Os valores de PostgreSQL em `.env.example` sao **somente para desenvolvimento**. Se mudar `POSTGRES_PASSWORD`, atualize tambem o `DATABASE_URL` usado fora do Compose. Dentro do Compose, a URL do backend e montada com as variaveis `POSTGRES_*`.
 
-Credentials stay in the backend. Vertex ADC takes precedence when a project is
-configured; API-key compatibility remains available without a project. Provider
-errors produce `translation_unavailable` without exposing credentials or relaying
-untranslated speech. See [translation documentation](docs/translation.md) for
-official references, lifecycle behavior, tests, and preview limitations.
+3. Suba os quatro servicos:
 
-## Running the Frontend
+   ```powershell
+   docker compose up --build
+   ```
 
-```bash
-cd frontend
-npm install
-npm run dev
-```
+4. Abra [a aplicacao](http://localhost:5173), crie uma conta e confirme o e-mail na [caixa local do Mailpit](http://localhost:8025). O Mailpit captura mensagens de desenvolvimento; nao as envia para fora da maquina. Para testar duas pessoas, use contas diferentes em navegadores ou perfis diferentes.
 
-The frontend runs at `http://localhost:5173` by default.
+| Servico | Endereco local | Para que serve |
+| --- | --- | --- |
+| Frontend | `http://localhost:5173` | Interface e proxy de `/api`/WebSocket para o backend |
+| Backend | `http://localhost:8080` | API; `GET /healthz` consulta tambem o banco |
+| PostgreSQL | `localhost:5432` | Dados de usuarios, salas e participantes |
+| Mailpit | `http://localhost:8025` | E-mails de confirmacao e recuperacao |
 
-### Access from another device on the local network
+As migrations SQL sao aplicadas pelo backend na inicializacao. O volume do PostgreSQL persiste entre `docker compose down` e `docker compose up`. Para parar, use `Ctrl+C` ou `docker compose down`; **nao use `down -v` se quiser preservar os dados locais**.
 
-Start the frontend with `npm run dev` from `frontend/`, or start the complete
-stack with `docker compose up --build`. On a device connected to the same local
-network, open `http://<computer-LAN-IP>:5173` (use the published `FRONTEND_PORT`
-instead if changed in Compose). `localhost` on a phone refers to the phone,
-not the computer running Symphonia.
+### Executar Go e Vite fora do Docker
 
-When Docker prints a `Network` URL such as `http://172.19.0.4:5173`, **do not
-use it on another device**: it is the frontend container's private Docker IP.
-Use the LAN IP of the computer that runs Docker instead. On Windows, find it
-with:
+Requer Node.js 22+, npm e Go 1.25+. Mantenha PostgreSQL e Mailpit em containers:
 
 ```powershell
-Get-NetIPAddress -AddressFamily IPv4 |
-  Where-Object { $_.AddressState -eq 'Preferred' } |
-  Format-Table InterfaceAlias, IPAddress
+docker compose up -d postgres mailpit
 ```
 
-For example, if the active Wi-Fi or Ethernet adapter shows `192.168.18.7`, open
-`http://192.168.18.7:5173/` from the phone, tablet, or another computer. Both
-devices must be on the same LAN; a guest Wi-Fi network with client isolation
-will prevent this connection.
-
-Vite listens on all interfaces and proxies `/api`, including WebSockets, to the
-backend. Keep `VITE_API_BASE_URL` unset or empty to use this same-origin path.
-The proxy defaults to `http://127.0.0.1:8080`; Compose sets `API_PROXY_TARGET` to
-`http://backend:8080`. For a different backend port when running locally, set
-`API_PROXY_TARGET` in the environment of the Vite process.
-
-When using Docker, the frontend service explicitly binds Vite to `0.0.0.0` and
-publishes port `5173` on the host. If another device still cannot connect, allow
-the configured `FRONTEND_PORT` through the host firewall. On Windows, run this
-in an Administrator PowerShell to allow only devices on the private local
-subnet:
+O Go e o Vite **nao carregam `.env` automaticamente** nesse modo. Em um terminal PowerShell, exporte as variaveis necessarias e inicie o backend:
 
 ```powershell
-New-NetFirewallRule `
-  -DisplayName "Symphonia Frontend (LAN)" `
-  -Direction Inbound `
-  -Action Allow `
-  -Protocol TCP `
-  -LocalPort 5173 `
-  -Profile Private `
-  -RemoteAddress LocalSubnet
-```
-
-This setup exposes the frontend only on the local network. Publishing it to the
-internet requires a reverse proxy with HTTPS and authentication; do not expose
-the development Vite server directly.
-
-Login and calls require the backend and PostgreSQL to be running as well.
-If the page cannot load, verify that the server is running, port 5173 is allowed
-by the host firewall, and the Wi-Fi network permits communication between devices.
-Microphone access from another device requires HTTPS with a certificate trusted
-by that device; browsers generally block microphone capture on plain HTTP LAN IPs.
-Use plain HTTP only on a trusted local network: bearer tokens and audio traffic
-are not encrypted. For any untrusted network or internet deployment, terminate
-HTTPS at a reverse proxy and serve the frontend through that proxy.
-
-The public landing-page conversation preview uses local sample phrases. Authentication,
-calls, microphone streaming and Gemini translation require the backend and database.
-
-Routes: `/`, `/login`, `/register`, `/home`, `/call/:id/setup`, and `/call/:id`.
-
-### Frontend Verification
-
-Run from `frontend/`:
-
-```bash
-npm run build
-npm run typecheck
-npx playwright install chromium
-npm run test:e2e
-```
-
-The browser tests cover desktop, tablet, mobile, route navigation, intercepted API flows, call controls, chat, animated signal rendering, and reduced motion. Playwright starts a local Vite server when needed. Test screenshots and traces are written to the ignored `frontend/test-results/` directory.
-
-See [frontend implementation notes](docs/frontend.md) for the component structure and current behavior.
-
-## Running the Backend
-
-```bash
+$env:DATABASE_URL = 'postgres://symphonia:symphonia@localhost:5432/symphonia?sslmode=disable'
+$env:JWT_SECRET = '<o-segredo-que-voce-gerou>'
+$env:APP_PUBLIC_URL = 'http://localhost:5173'
+$env:SMTP_HOST = 'localhost'
+$env:SMTP_PORT = '1025'
+$env:EMAIL_FROM = 'Symphonia <no-reply@symphonia.local>'
+$env:TRANSLATION_PROVIDER = 'mock'
 cd backend
 go run ./cmd/server
 ```
 
-The backend runs at `http://localhost:8080` by default.
+Em outro terminal:
 
-Health check:
-
-```bash
-curl http://localhost:8080/healthz
+```powershell
+cd frontend
+npm ci
+npm run dev
 ```
 
-## Running with Docker Compose
+O Vite encaminha `/api` e WebSocket para `http://127.0.0.1:8080` por padrao. Se alterar a porta do backend, defina `API_PROXY_TARGET` no terminal do Vite. Para esse uso, deixe `VITE_API_BASE_URL` vazio, preservando a mesma origem no navegador.
 
-The development commands below are unchanged. For Railway deployment, production
-environment variables, and a local preview of the production image, see the
-[deployment guide](docs/deploy.md). The root `Dockerfile` builds the frontend and
-Go server into one non-root image; `railway.json` configures one replica and a
-database-aware `/healthz` check. SQL migrations are embedded in the Go binary.
+## O que ja funciona
 
-```bash
-docker compose up --build
+- Cadastro com confirmacao de e-mail; login; recuperacao e alteracao de senha; OAuth Google opcional. Contas anteriores a migration de verificacao sao marcadas como verificadas; novos cadastros precisam confirmar o e-mail.
+- Criacao e entrada em salas de ate duas pessoas, nome opcional da reuniao (padrao `Meeting`), convite com codigo e QR code.
+- Microfone, modo somente escuta, mute, transcricoes, audio traduzido e chat em tempo real. A traducao de chat e de voz depende do provider configurado.
+- Sessao de login no `localStorage` do **navegador/perfil atual**. O token expira em 72 horas; mudar ou redefinir a senha invalida tokens anteriores.
+
+**Limites importantes:** mensagens do chat, notificacoes de nao lidas e conexoes de chamada vivem na memoria; recarregar a pagina nao recupera o historico. O modo `mock` nao e traducao real. Chamadas ativas podem ser interrompidas por reinicio/deploy, e a arquitetura atual usa uma unica replica do backend.
+
+## Traducao e acesso por outros dispositivos
+
+O padrao `TRANSLATION_PROVIDER=mock` permite verificar transporte e interface sem credenciais externas. Para Gemini, use Vertex AI com ADC/conta de servico ou, quando compativel com o modelo, `GEMINI_API_KEY`. OAuth Google para **login** usa credenciais distintas das de **traducao**. Veja [configuracao e limites da traducao](docs/translation.md).
+
+Para abrir a interface em outro aparelho da mesma rede, use `http://<IP-LAN-do-computador>:5173`. O IP exibido pelo Docker como `Network`, por exemplo `172.x.x.x`, e interno ao container; use o IP do computador. O frontend pode abrir, mas navegadores normalmente bloqueiam o **microfone em HTTP por IP de rede**. Para testar chamada entre celular e computador, use o deploy HTTPS ou um tunel HTTPS confiavel. `localhost` no celular refere-se ao proprio celular. Nao exponha o servidor Vite de desenvolvimento diretamente na internet. Veja [deploy e teste em dispositivos](docs/deploy.md).
+
+## Verificacao
+
+```powershell
+cd backend
+go test ./...
 ```
 
-Services:
+Os testes de integracao com banco exigem `TEST_DATABASE_URL` apontando para um **banco de teste separado**; sem essa variavel, eles sao ignorados. O teste SMTP opcional usa `TEST_SMTP_HOST` e `TEST_SMTP_PORT`. Para o frontend:
 
-- Frontend: `http://localhost:5173`
-- Backend: `http://localhost:8080`
-- PostgreSQL: `localhost:5432`
+```powershell
+cd frontend
+npm ci
+npm run typecheck
+npm run build
+npx playwright install chromium
+npm run test:e2e
+```
+
+O Playwright usa mocks de API por padrao. O cenario de integracao `realtime-live.spec.ts` ainda espera login imediato apos cadastro e precisa ser adaptado a confirmacao de e-mail; **nao o use como aprovacao da branch atual**. Veja [guia do frontend](docs/frontend.md).
+
+## Mapa da documentacao
+
+- [Indice dos guias](docs/README.md): escolha o assunto ou a tarefa.
+- [Contas e seguranca](docs/auth.md): confirmacao de e-mail, senhas e Google OAuth.
+- [Frontend](docs/frontend.md): telas, componentes, audio e testes.
+- [WebSocket](docs/websocket.md): eventos, autenticacao, limites e frames binarios.
+- [Traducao](docs/translation.md): providers, credenciais, fluxo e limitacoes.
+- [Deploy no Railway](docs/deploy.md): variaveis, publicacao, teste e diagnostico.
+
+## Estrutura
+
+```text
+symphonia/
+├── backend/                  # Servidor Go, regras e migrations
+├── frontend/                 # React, Vite e testes de navegador
+├── docs/                     # Guias e protocolos
+├── .env.example              # Modelo de configuracao, sem segredos reais
+├── docker-compose.yml        # Desenvolvimento
+├── docker-compose.deploy.yml # Previa local da imagem de producao
+├── Dockerfile                # Imagem unica para deploy
+└── railway.json              # Health check e replica no Railway
+```

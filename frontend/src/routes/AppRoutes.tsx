@@ -3,6 +3,10 @@ import { Link, Route, Routes, useLocation } from "react-router-dom";
 import { Landing } from "../pages/Landing";
 import { Login } from "../pages/Login";
 import { Register } from "../pages/Register";
+import { EmailVerification, ResendVerification } from "../pages/EmailVerification";
+import { ForgotPassword, ResetPassword } from "../pages/PasswordRecovery";
+import { GoogleComplete } from "../pages/GoogleComplete";
+import { ChangePassword } from "../pages/ChangePassword";
 import { Home } from "../pages/Home";
 import { CallSetup } from "../pages/CallSetup";
 import { Call } from "../pages/Call";
@@ -12,6 +16,12 @@ const titles: Record<string, string> = {
   "/": "Sua voz aproxima",
   "/login": "Entrar",
   "/register": "Criar conta",
+  "/verify-email": "Confirmar e-mail",
+  "/resend-verification": "Reenviar confirmação",
+  "/forgot-password": "Recuperar senha",
+  "/reset-password": "Redefinir senha",
+  "/auth/google/complete": "Entrar com Google",
+  "/account/password": "Alterar senha",
   "/home": "Suas conversas",
 };
 
@@ -37,6 +47,12 @@ export function AppRoutes() {
         <Route path="/" element={<Landing />} />
         <Route path="/login" element={<Login />} />
         <Route path="/register" element={<Register />} />
+        <Route path="/verify-email" element={<EmailVerification />} />
+        <Route path="/resend-verification" element={<ResendVerification />} />
+        <Route path="/forgot-password" element={<ForgotPassword />} />
+        <Route path="/reset-password" element={<ResetPassword />} />
+        <Route path="/auth/google/complete" element={<GoogleComplete />} />
+        <Route path="/account/password" element={<ProtectedRoute><ChangePassword /></ProtectedRoute>} />
         <Route
           path="/home"
           element={

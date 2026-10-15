@@ -5,12 +5,19 @@ import {
   mockCallApi,
   mockLogin,
   mockRegister,
+  mockVerifyEmail,
   token,
 } from "./helpers";
 
 const protectedRoutes = ["/home", "/call/demo-room/setup", "/call/demo-room"];
 
-test("cadastro: cria conta e aterrissa em /home", async ({ page }) => {
+test.beforeEach(async ({ page }) => {
+  await page.route("**/api/auth/providers", (route) =>
+    route.fulfill({ status: 200, contentType: "application/json", body: JSON.stringify({ google: false }) }),
+  );
+});
+
+test("cadastro: confirma o e-mail antes de entrar", async ({ page }) => {
   await mockRegister(page, {
     user: { ...defaultUser, name: "Bruno Lima", email: "bruno@example.com" },
   });
@@ -20,6 +27,9 @@ test("cadastro: cria conta e aterrissa em /home", async ({ page }) => {
   await page.getByLabel("senha", { exact: true }).fill("secret-123");
   await page.getByLabel("confirmar senha").fill("secret-123");
   await page.getByRole("button", { name: "Criar conta" }).click();
+  await expect(page.getByRole("heading", { name: "Confira seu e-mail" })).toBeVisible();
+  await mockVerifyEmail(page, { ...defaultUser, name: "Bruno Lima", email: "bruno@example.com" });
+  await page.goto("/verify-email?token=valid-test-token");
   await expect(page).toHaveURL(/\/home$/);
   await expect(page.getByRole("heading", { level: 1 })).toContainText(
     "BRUNO LIMA.",
@@ -135,4 +145,48 @@ test("rotas privadas exigem autenticação", async ({ page }) => {
     await expect(page).toHaveURL(/\/login$/);
   }
   await expect(page.getByLabel("email", { exact: true })).toBeVisible();
+});
+
+test("recuperação solicita link sem revelar existência da conta e redefine a senha", async ({ page }) => {
+  await page.route("**/api/auth/forgot-password", (route) => route.fulfill({ status: 200, contentType: "application/json", body: JSON.stringify({ message: "sent" }) }));
+  await page.route("**/api/auth/reset-password", (route) => route.fulfill({ status: 200, contentType: "application/json", body: JSON.stringify({ message: "password changed" }) }));
+  await page.goto("/forgot-password");
+  await page.getByLabel("e-mail").fill("ana@example.com");
+  await page.getByRole("button", { name: "Enviar link" }).click();
+  await expect(page.getByRole("status")).toContainText("Se este e-mail tiver uma conta");
+  await page.goto("/reset-password?token=reset-test-token");
+  await expect(page).toHaveURL(/\/reset-password$/);
+  await page.getByLabel("nova senha", { exact: true }).fill("new-secret-123");
+  await page.getByLabel("confirmar nova senha").fill("new-secret-123");
+  await page.getByRole("button", { name: "Salvar senha" }).click();
+  await expect(page.getByRole("status")).toContainText("Senha atualizada");
+});
+
+test("troca de senha mantém a sessão atual e atualiza o token", async ({ page }) => {
+  await mockAuthenticated(page);
+  await page.route("**/api/auth/change-password", (route) => route.fulfill({ status: 200, contentType: "application/json", headers: { Authorization: "Bearer renewed-token" }, body: JSON.stringify({ message: "password changed" }) }));
+  await page.goto("/account/password");
+  await page.getByLabel("senha atual").fill("old-secret-123");
+  await page.getByLabel("nova senha", { exact: true }).fill("new-secret-123");
+  await page.getByLabel("confirmar nova senha").fill("new-secret-123");
+  await page.getByRole("button", { name: "Salvar senha" }).click();
+  await expect(page.getByRole("status")).toHaveText("Senha alterada com sucesso.");
+  await expect.poll(() => page.evaluate(() => localStorage.getItem("symphonia_token"))).toBe("renewed-token");
+});
+
+test("Google só aparece quando configurado", async ({ page }) => {
+  await page.route("**/api/auth/providers", (route) => route.fulfill({ status: 200, contentType: "application/json", body: JSON.stringify({ google: true }) }));
+  await page.goto("/login");
+  await expect(page.getByRole("button", { name: "Continuar com Google" })).toBeVisible();
+});
+
+test("conta existente pode vincular Google com retorno à conta", async ({ page }) => {
+  await mockAuthenticated(page);
+  await page.route("**/api/auth/providers", (route) => route.fulfill({ status: 200, contentType: "application/json", body: JSON.stringify({ google: true }) }));
+  await page.route("**/api/auth/google/link/start", (route) => route.fulfill({ status: 200, contentType: "application/json", body: JSON.stringify({ url: `${new URL(route.request().url()).origin}/auth/google/complete?ticket=linked-test-ticket&return_to=%2Faccount%2Fpassword` }) }));
+  await page.route("**/api/auth/google/finish", (route) => route.fulfill({ status: 200, contentType: "application/json", headers: { Authorization: "Bearer linked-session" }, body: JSON.stringify({ ...defaultUser, google_linked: true }) }));
+  await page.goto("/account/password");
+  await page.getByRole("button", { name: "Vincular Google" }).click();
+  await expect(page).toHaveURL(/\/account\/password$/);
+  await expect(page.getByText("Google vinculado")).toBeVisible();
 });

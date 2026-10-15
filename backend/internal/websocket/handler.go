@@ -21,9 +21,10 @@ type callStore interface {
 }
 
 type Handler struct {
-	calls          callStore
-	hub            *Hub
-	allowedOrigins map[string]struct{}
+	calls           callStore
+	hub             *Hub
+	allowedOrigins  map[string]struct{}
+	validateSession func(context.Context, string) (int64, error)
 }
 
 func NewHandler(calls callStore, hub *Hub, translators ...translation.SessionOpener) *Handler {
@@ -40,7 +41,11 @@ func NewHandler(calls callStore, hub *Hub, translators ...translation.SessionOpe
 			allowed[origin] = struct{}{}
 		}
 	}
-	return &Handler{calls: calls, hub: hub, allowedOrigins: allowed}
+	return &Handler{calls: calls, hub: hub, allowedOrigins: allowed, validateSession: func(_ context.Context, token string) (int64, error) { return auth.ValidateToken(token) }}
+}
+
+func (h *Handler) SetSessionValidator(validate func(context.Context, string) (int64, error)) {
+	h.validateSession = validate
 }
 
 func (h *Handler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
@@ -53,7 +58,7 @@ func (h *Handler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, "required WebSocket protocols are missing", http.StatusBadRequest)
 		return
 	}
-	userID, err := auth.ValidateToken(token)
+	userID, err := h.validateSession(r.Context(), token)
 	if err != nil {
 		http.Error(w, "invalid or expired token", http.StatusUnauthorized)
 		return

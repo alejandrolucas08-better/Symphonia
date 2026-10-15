@@ -71,6 +71,12 @@ const errorMessages: Record<string, string> = {
     "Selecione idiomas válidos.",
   "name must contain 1 to 80 characters":
     "O nome da reunião deve ter entre 1 e 80 caracteres.",
+  "email not verified": "Confirme seu e-mail antes de entrar.",
+  "email delivery is unavailable": "O envio de e-mails está indisponível. Tente mais tarde.",
+  "invalid or expired link": "Este link expirou ou já foi utilizado.",
+  "password must be 8 to 72 bytes": "A senha deve ter entre 8 e 72 caracteres.",
+  "current password is incorrect": "A senha atual está incorreta.",
+  "account has no password": "Esta conta usa o Google. Defina uma senha pela recuperação de senha.",
 };
 
 export function userFacingError(err: unknown): string {
@@ -82,7 +88,7 @@ export function userFacingError(err: unknown): string {
 
 export const api = {
   async register(payload: RegisterPayload) {
-    return request<AuthUser>("/api/register", {
+    return request<{ message: string }>("/api/register", {
       method: "POST",
       body: JSON.stringify(payload),
     });
@@ -99,6 +105,41 @@ export const api = {
     return request<AuthUser>("/api/session", {
       headers: { Authorization: `Bearer ${token}` },
     });
+  },
+
+  async providers() {
+    return request<{ google: boolean }>("/api/auth/providers");
+  },
+
+  async resendVerification(email: string) {
+    return request<{ message: string }>("/api/auth/resend-verification", { method: "POST", body: JSON.stringify({ email }) });
+  },
+
+  async verifyEmail(token: string) {
+    return request<AuthUser>("/api/auth/verify-email", { method: "POST", body: JSON.stringify({ token }) });
+  },
+
+  async forgotPassword(email: string) {
+    return request<{ message: string }>("/api/auth/forgot-password", { method: "POST", body: JSON.stringify({ email }) });
+  },
+
+  async resetPassword(token: string, newPassword: string) {
+    return request<{ message: string }>("/api/auth/reset-password", { method: "POST", body: JSON.stringify({ token, new_password: newPassword }) });
+  },
+
+  async changePassword(token: string, currentPassword: string, newPassword: string) {
+    return request<{ message: string }>("/api/auth/change-password", {
+      method: "POST", headers: { Authorization: `Bearer ${token}` },
+      body: JSON.stringify({ current_password: currentPassword, new_password: newPassword }),
+    });
+  },
+
+  async finishGoogle(ticket: string) {
+    return request<AuthUser>("/api/auth/google/finish", { method: "POST", body: JSON.stringify({ token: ticket }) });
+  },
+
+  async startGoogleLink(token: string) {
+    return request<{ url: string }>("/api/auth/google/link/start", { method: "POST", headers: { Authorization: `Bearer ${token}` } });
   },
 
   async createCall(token: string, payload: CreateCallPayload) {

@@ -1,6 +1,6 @@
 import { useEffect, useState } from "react";
-import { LogOut } from "lucide-react";
-import { useLocation, useNavigate } from "react-router-dom";
+import { LogOut, UserRound } from "lucide-react";
+import { Link, useLocation, useNavigate } from "react-router-dom";
 import { useAuth } from "../../hooks/useAuth";
 import { useDemo } from "../../contexts/DemoContext";
 import { Brand } from "./Header";
@@ -62,6 +62,7 @@ export function AppHeader({
             <>
               <span className="account-name">{name}</span>
               <Avatar initials={initialsFor(name)} small />
+              <Link className="icon-button" to="/account/password" aria-label="Conta" title="Conta"><UserRound size={18} /></Link>
               <button
                 className="icon-button"
                 aria-label="Sair"

@@ -17,17 +17,22 @@ var (
 	ErrInvalidEmail    = errors.New("invalid email format")
 	ErrPasswordTooWeak = errors.New("password must be at least 8 characters")
 	ErrUserNotFound    = errors.New("user not found")
+	ErrPasswordMissing = errors.New("account has no password")
 )
 
 var emailRegex = regexp.MustCompile(`^[a-zA-Z0-9._%+\-]+@[a-zA-Z0-9.\-]+\.[a-zA-Z]{2,}$`)
 
 type User struct {
-	ID           int64     `json:"id"`
-	Name         string    `json:"name"`
-	Email        string    `json:"email"`
-	PasswordHash string    `json:"-"`
-	CreatedAt    time.Time `json:"created_at"`
-	UpdatedAt    time.Time `json:"updated_at"`
+	ID              int64      `json:"id"`
+	Name            string     `json:"name"`
+	Email           string     `json:"email"`
+	PasswordHash    string     `json:"-"`
+	CreatedAt       time.Time  `json:"created_at"`
+	UpdatedAt       time.Time  `json:"updated_at"`
+	EmailVerifiedAt *time.Time `json:"email_verified_at"`
+	AuthVersion     int        `json:"-"`
+	HasPassword     bool       `json:"has_password"`
+	GoogleLinked    bool       `json:"google_linked"`
 }
 
 func ValidateEmail(email string) bool {
@@ -46,7 +51,7 @@ func (r *Repository) Create(ctx context.Context, name, email, password string) (
 	if !ValidateEmail(email) {
 		return nil, ErrInvalidEmail
 	}
-	if len(password) < 8 {
+	if len(password) < 8 || len(password) > 72 {
 		return nil, ErrPasswordTooWeak
 	}
 
@@ -75,37 +80,43 @@ func (r *Repository) Create(ctx context.Context, name, email, password string) (
 		return nil, fmt.Errorf("insert user: %w", err)
 	}
 
+	user.PasswordHash = string(hash)
+	user.HasPassword = true
 	return user, nil
 }
 
 func (r *Repository) FindByEmail(ctx context.Context, email string) (*User, error) {
 	user := &User{}
 	err := r.db.QueryRow(ctx,
-		`SELECT id, name, email, password_hash, created_at, updated_at
+		`SELECT id, name, email, COALESCE(password_hash, ''), created_at, updated_at, email_verified_at, auth_version,
+		 EXISTS(SELECT 1 FROM oauth_identities WHERE provider='google' AND user_id=users.id)
 		 FROM users WHERE LOWER(email) = LOWER($1)`,
 		email,
-	).Scan(&user.ID, &user.Name, &user.Email, &user.PasswordHash, &user.CreatedAt, &user.UpdatedAt)
+	).Scan(&user.ID, &user.Name, &user.Email, &user.PasswordHash, &user.CreatedAt, &user.UpdatedAt, &user.EmailVerifiedAt, &user.AuthVersion, &user.GoogleLinked)
 	if errors.Is(err, pgx.ErrNoRows) {
 		return nil, ErrUserNotFound
 	}
 	if err != nil {
 		return nil, fmt.Errorf("find user by email: %w", err)
 	}
+	user.HasPassword = user.PasswordHash != ""
 	return user, nil
 }
 
 func (r *Repository) FindByID(ctx context.Context, id int64) (*User, error) {
 	user := &User{}
 	err := r.db.QueryRow(ctx,
-		`SELECT id, name, email, created_at, updated_at
+		`SELECT id, name, email, COALESCE(password_hash, ''), created_at, updated_at, email_verified_at, auth_version,
+		 EXISTS(SELECT 1 FROM oauth_identities WHERE provider='google' AND user_id=users.id)
 		 FROM users WHERE id = $1`, id,
-	).Scan(&user.ID, &user.Name, &user.Email, &user.CreatedAt, &user.UpdatedAt)
+	).Scan(&user.ID, &user.Name, &user.Email, &user.PasswordHash, &user.CreatedAt, &user.UpdatedAt, &user.EmailVerifiedAt, &user.AuthVersion, &user.GoogleLinked)
 	if errors.Is(err, pgx.ErrNoRows) {
 		return nil, ErrUserNotFound
 	}
 	if err != nil {
 		return nil, fmt.Errorf("find user by id: %w", err)
 	}
+	user.HasPassword = user.PasswordHash != ""
 	return user, nil
 }
 

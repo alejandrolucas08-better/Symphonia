@@ -16,7 +16,7 @@ func TestProductionRequiresDatabaseURL(t *testing.T) {
 }
 
 func TestMigrationsAreEmbedded(t *testing.T) {
-	for _, name := range []string{"001_create_users.sql", "002_create_calls.sql", "003_add_users_updated_at.sql", "004_migrate_legacy_uuid_schema.sql", "005_add_call_name.sql"} {
+	for _, name := range []string{"001_create_users.sql", "002_create_calls.sql", "003_add_users_updated_at.sql", "004_migrate_legacy_uuid_schema.sql", "005_add_call_name.sql", "006_set_default_call_name.sql", "007_account_auth.sql"} {
 		data, err := migrations.Files.ReadFile(name)
 		if err != nil || len(data) == 0 {
 			t.Fatalf("migration %s not embedded: %v", name, err)

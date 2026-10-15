@@ -5,7 +5,7 @@ import {
   useState,
   type ReactNode,
 } from "react";
-import { api, ApiError } from "../services/api";
+import { api } from "../services/api";
 import type { AuthUser, LoginPayload, RegisterPayload } from "../types/auth";
 
 type AuthState = {
@@ -14,6 +14,8 @@ type AuthState = {
   loading: boolean;
   login: (payload: LoginPayload) => Promise<void>;
   register: (payload: RegisterPayload) => Promise<void>;
+  completeSession: (user: AuthUser, token: string) => void;
+  replaceToken: (token: string) => void;
   logout: () => void;
 };
 
@@ -98,11 +100,15 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
   const register = useCallback(
     async (payload: RegisterPayload) => {
-      const { data, token: t } = await api.register(payload);
-      applyAuth(data, t ?? "");
+      await api.register(payload);
     },
-    [applyAuth],
+    [],
   );
+
+  const replaceToken = useCallback((nextToken: string) => {
+    setToken(nextToken);
+    writeToken(nextToken);
+  }, []);
 
   const logout = useCallback(() => {
     clearAuth();
@@ -110,7 +116,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
   return (
     <AuthContext.Provider
-      value={{ user, token, loading, login, register, logout }}
+      value={{ user, token, loading, login, register, completeSession: applyAuth, replaceToken, logout }}
     >
       {children}
     </AuthContext.Provider>

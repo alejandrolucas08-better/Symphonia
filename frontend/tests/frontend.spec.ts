@@ -3,6 +3,7 @@ import {
   mockAuthenticated,
   mockLogin,
   mockRegister,
+  mockVerifyEmail,
   mockCallApi,
   getCallSocketMock,
   defaultUser,
@@ -27,6 +28,9 @@ test.beforeEach(async ({ page }) => {
   await installMediaMocks(page);
   await mockAuthenticated(page);
   await mockCallApi(page);
+  await page.route("**/api/auth/providers", (route) =>
+    route.fulfill({ status: 200, contentType: "application/json", body: JSON.stringify({ google: false }) }),
+  );
   callSocketMock = getCallSocketMock(page);
 });
 
@@ -41,10 +45,11 @@ for (const route of routes) {
       if (["error", "warning"].includes(message.type()))
         errors.push(message.text());
     });
+    const origin = process.env.E2E_BASE_URL ?? "http://127.0.0.1:5173";
     page.on("request", (request) => {
       if (
-        !request.url().startsWith("http://127.0.0.1:5173") &&
-        !request.url().startsWith("ws://127.0.0.1:5173") &&
+        !request.url().startsWith(origin) &&
+        !request.url().startsWith(origin.replace(/^http/, "ws")) &&
         !request.url().startsWith("data:")
       )
         external.push(request.url());
@@ -107,6 +112,9 @@ test("registration validation, create call, preferences, chat and end", async ({
   );
   await page.getByLabel("confirmar senha").fill("test-only-123");
   await page.getByRole("button", { name: "Criar conta" }).click();
+  await expect(page.getByRole("heading", { name: "Confira seu e-mail" })).toBeVisible();
+  await mockVerifyEmail(page, { ...defaultUser, name: "Alex Silva", email: "alex@example.com" });
+  await page.goto("/verify-email?token=valid-test-token");
   await expect(page).toHaveURL(/\/home$/);
   await expect(page.getByRole("heading", { level: 1 })).toContainText(
     "ALEX SILVA.",
@@ -200,7 +208,7 @@ test("call invitation shows its code and QR, then copies the setup link", async 
   await expect(dialog.getByRole("status")).toContainText("Link do convite copiado");
   await expect.poll(() => page.evaluate(() =>
     (window as Window & { __copiedInvite?: string }).__copiedInvite,
-  )).toBe("http://127.0.0.1:5173/call/demo-room/setup");
+  )).toBe(`${process.env.E2E_BASE_URL ?? "http://127.0.0.1:5173"}/call/demo-room/setup`);
   await dialog.getByRole("button", { name: "Fechar convite" }).click();
   await expect(dialog).not.toBeVisible();
   await expect(
