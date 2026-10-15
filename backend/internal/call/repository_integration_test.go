@@ -45,12 +45,15 @@ func TestRepositoryJoinCapacity(t *testing.T) {
 	}()
 
 	repository := NewRepository(pool)
-	sequential, err := repository.Create(ctx, userIDs[0], LanguageEnglish, LanguagePortuguese)
+	sequential, err := repository.Create(ctx, userIDs[0], "Planejamento semanal", LanguageEnglish, LanguagePortuguese)
 	if err != nil {
 		t.Fatalf("create sequential call: %v", err)
 	}
 	if _, err := repository.GetForActiveParticipant(ctx, sequential.Code, userIDs[0]); err != nil {
 		t.Fatalf("get active host: %v", err)
+	}
+	if sequential.Name != "Planejamento semanal" {
+		t.Fatalf("created call name = %q", sequential.Name)
 	}
 	if _, err := repository.GetForActiveParticipant(ctx, sequential.Code, userIDs[1]); !errors.Is(err, ErrNotParticipant) {
 		t.Fatalf("inactive participant error = %v, want ErrNotParticipant", err)
@@ -75,7 +78,7 @@ func TestRepositoryJoinCapacity(t *testing.T) {
 		t.Fatalf("ended call error = %v, want ErrCallEnded", err)
 	}
 
-	concurrent, err := repository.Create(ctx, userIDs[0], LanguageEnglish, LanguagePortuguese)
+	concurrent, err := repository.Create(ctx, userIDs[0], "Conversa internacional", LanguageEnglish, LanguagePortuguese)
 	if err != nil {
 		t.Fatalf("create concurrent call: %v", err)
 	}

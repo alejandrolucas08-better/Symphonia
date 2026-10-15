@@ -11,8 +11,10 @@ export function Home() {
   const { name, settings } = useDemo();
   const { token, user } = useAuth();
   const navigate = useNavigate();
+  const [meetingName, setMeetingName] = useState("");
   const [code, setCode] = useState("");
-  const [error, setError] = useState("");
+  const [createError, setCreateError] = useState("");
+  const [joinError, setJoinError] = useState("");
   const [createPending, setCreatePending] = useState(false);
   const [joinPending, setJoinPending] = useState(false);
   const hour = new Date().getHours();
@@ -49,27 +51,60 @@ export function Home() {
               <br />
               uma nova conexão.
             </p>
-            <ActionButton
-              disabled={createPending}
-              aria-busy={createPending}
-              onClick={async () => {
+            <form
+              className="create-call-form"
+              onSubmit={async (event) => {
+                event.preventDefault();
                 if (!token || createPending) return;
+                const cleanName = meetingName.trim();
+                if (!cleanName) {
+                  setCreateError("Dê um nome para a reunião.");
+                  return;
+                }
                 setCreatePending(true);
-                setError("");
+                setCreateError("");
                 try {
                   const { data } = await api.createCall(token, {
+                    name: cleanName,
                     spoken_language: settings.spoken,
                     heard_language: settings.heard,
                   });
                   navigate(`/call/${encodeURIComponent(data.code)}/setup`);
                 } catch (err) {
-                  setError(userFacingError(err));
+                  setCreateError(userFacingError(err));
                   setCreatePending(false);
                 }
               }}
             >
-              {createPending ? "Criando chamada..." : "Criar chamada"}
-            </ActionButton>
+              <div className="meeting-name-field">
+                <label htmlFor="meeting-name">nome da reunião</label>
+                <input
+                  id="meeting-name"
+                  value={meetingName}
+                  placeholder="ex.: planejamento semanal"
+                  maxLength={80}
+                  required
+                  aria-invalid={!!createError}
+                  aria-describedby={createError ? "create-error" : undefined}
+                  onChange={(event) => {
+                    setMeetingName(event.target.value);
+                    setCreateError("");
+                  }}
+                />
+              </div>
+              <ActionButton
+                type="submit"
+                disabled={createPending}
+                aria-busy={createPending}
+              >
+                {createPending ? "Criando chamada..." : "Criar chamada"}
+              </ActionButton>
+              {createError && (
+                <p id="create-error" role="alert" className="error-message">
+                  {createError}
+                </p>
+              )}
+            </form>
           </section>
           <section className="home-action">
             <div className="action-number">
@@ -90,30 +125,30 @@ export function Home() {
                 event.preventDefault();
                 const clean = code.trim().toLowerCase();
                 if (!/^[a-z0-9]+(?:-[a-z0-9]+)*$/.test(clean)) {
-                  setError("Use letras, números e hífens entre palavras.");
+                  setJoinError("Use letras, números e hífens entre palavras.");
                   return;
                 }
                 if (!token || joinPending) return;
                 setJoinPending(true);
-                setError("");
+                setJoinError("");
                 try {
                   const { data } = await api.getCall(token, clean);
                   if (data.status === "ended") {
-                    setError("Esta chamada já foi encerrada.");
+                    setJoinError("Esta chamada já foi encerrada.");
                     return;
                   }
                   const alreadyJoined = data.participants.some(
                     (participant) => participant.user_id === user?.id,
                   );
                   if (data.participants.length >= 2 && !alreadyJoined) {
-                    setError("A chamada já está cheia.");
+                    setJoinError("A chamada já está cheia.");
                     return;
                   }
                   navigate(
                     `/call/${encodeURIComponent(data.code)}/setup`,
                   );
                 } catch (err) {
-                  setError(userFacingError(err));
+                  setJoinError(userFacingError(err));
                 } finally {
                   setJoinPending(false);
                 }
@@ -129,12 +164,12 @@ export function Home() {
                   value={code}
                   onChange={(event) => {
                     setCode(event.target.value);
-                    setError("");
+                    setJoinError("");
                   }}
                   maxLength={40}
                   required
-                  aria-invalid={!!error}
-                  aria-describedby={error ? "code-error" : undefined}
+                  aria-invalid={!!joinError}
+                  aria-describedby={joinError ? "code-error" : undefined}
                 />
                 <button
                   className="icon-button join-button"
@@ -146,16 +181,16 @@ export function Home() {
                   <ArrowUpRight size={22} />
                 </button>
               </div>
+              {joinError && (
+                <p id="code-error" role="alert" className="error-message">
+                  {joinError}
+                </p>
+              )}
             </form>
           </section>
         </div>
-        {error && (
-          <p id="code-error" role="alert" className="error-message">
-            {error}
-          </p>
-        )}
         <footer className="home-foot">
-          <span className="demo-tag">ambiente demonstrativo</span>
+          <span>TRADUÇÃO EM TEMPO REAL</span>
           <span>ATÉ 2 PESSOAS / SÓ ÁUDIO</span>
         </footer>
       </main>

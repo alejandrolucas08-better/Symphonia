@@ -1,5 +1,5 @@
 import type { AuthUser, LoginPayload, RegisterPayload } from "../types/auth";
-import type { Call, CallLanguagePayload } from "../types/call";
+import type { Call, CallLanguagePayload, CreateCallPayload } from "../types/call";
 
 const ORIGIN = import.meta.env.VITE_API_BASE_URL ?? "";
 const BASE = ORIGIN ? ORIGIN.replace(/\/$/, "") : "";
@@ -69,6 +69,8 @@ const errorMessages: Record<string, string> = {
   "invalid languages": "Idiomas inválidos.",
   "spoken_language and heard_language must be supported languages":
     "Selecione idiomas válidos.",
+  "name must contain 1 to 80 characters":
+    "O nome da reunião deve ter entre 1 e 80 caracteres.",
 };
 
 export function userFacingError(err: unknown): string {
@@ -99,7 +101,7 @@ export const api = {
     });
   },
 
-  async createCall(token: string, payload: CallLanguagePayload) {
+  async createCall(token: string, payload: CreateCallPayload) {
     return request<Call>("/api/calls", {
       method: "POST",
       headers: { Authorization: `Bearer ${token}` },

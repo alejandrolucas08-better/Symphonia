@@ -52,8 +52,8 @@ export function CallControls({
       )}
       <div className="container controls-inner">
         <div className="translation-status">
-          <StatusBadge>TRADUÇÃO ATIVA</StatusBadge>
-          <span className="muted">transcrição demo</span>
+          <StatusBadge>TRADUÇÃO</StatusBadge>
+          <span className="muted">áudio e transcrição</span>
         </div>
         <div className="control-group">
           <div className="control-item">

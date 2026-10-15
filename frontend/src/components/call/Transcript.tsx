@@ -1,4 +1,4 @@
-import { ArrowDown, SkipForward } from "lucide-react";
+import { ArrowDown } from "lucide-react";
 
 export function Transcript({
   speaker,
@@ -8,7 +8,6 @@ export function Transcript({
   target,
   ready,
   turnKey,
-  next,
 }: {
   speaker: string;
   original: string;
@@ -17,20 +16,11 @@ export function Transcript({
   target: string;
   ready: boolean;
   turnKey: number;
-  next: () => void;
 }) {
   return (
     <section className="transcript" aria-label="Transcrição">
       <div className="panel-heading">
         <h2>TRANSCRIÇÃO</h2>
-        <button
-          className="icon-button"
-          onClick={next}
-          title="Próxima fala"
-          aria-label="Próxima fala"
-        >
-          <SkipForward size={17} />
-        </button>
       </div>
       <div className="transcript-content" key={turnKey}>
         <p className="transcript-attribution">

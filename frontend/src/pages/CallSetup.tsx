@@ -120,6 +120,10 @@ export function CallSetup() {
     };
   }, [id, token, user?.id]);
 
+  useEffect(() => {
+    if (call?.name) document.title = `${call.name} | Symphonia`;
+  }, [call?.name]);
+
   const enterCall = async (listenOnly = false) => {
     if (!token || !call || pending) return;
     if (call.status === "ended") {
@@ -186,10 +190,9 @@ export function CallSetup() {
               PRÉ-CHAMADA / <span className="room-code">{call?.code ?? id}</span>
             </p>
             <h1>
-              vamos nos
-              <br />
-              <strong>sintonizar.</strong>
+              {call?.name ?? "Preparando reunião..."}
             </h1>
+            <p className="setup-subtitle">vamos nos <strong>sintonizar.</strong></p>
           </div>
           <span className="demo-tag">áudio do navegador</span>
         </div>

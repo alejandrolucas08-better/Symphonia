@@ -10,10 +10,12 @@ import type { CallSocketStatus } from "../../types/realtime";
 
 export function AppHeader({
   call = false,
+  callName,
   participantCount,
   realtimeStatus = "stopped",
 }: {
   call?: boolean;
+  callName?: string;
   participantCount?: number;
   realtimeStatus?: CallSocketStatus;
 }) {
@@ -38,7 +40,7 @@ export function AppHeader({
         <Brand to="/home" />
         {call && (
           <span className="room-heading">
-            Daily meeting{" "}
+            {callName ?? "Reunião"}{" "}
             {participantCount !== undefined && (
               <span className="muted">
                 / {String(participantCount).padStart(2, "0")}

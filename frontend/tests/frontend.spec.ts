@@ -111,14 +111,20 @@ test("registration validation, create call, preferences, chat and end", async ({
   await expect(page.getByRole("heading", { level: 1 })).toContainText(
     "ALEX SILVA.",
   );
+  await page.getByLabel("nome da reunião").fill("Planejamento semanal");
   await page.getByRole("button", { name: "Criar chamada" }).click();
   await expect(page).toHaveURL(/\/call\/sala-001\/setup$/);
+  await expect(page.getByRole("heading", { level: 1 })).toHaveText(
+    "Planejamento semanal",
+  );
   await page.getByLabel("quero ouvir").selectOption("ES-ES");
   await page
     .getByRole("button", { name: "Desativar microfone", exact: true })
     .click();
   await page.getByRole("button", { name: "Entrar na chamada" }).click();
-  await page.getByRole("button", { name: "Pausar simulação" }).click();
+  await expect(page.getByRole("heading", { level: 1 })).toHaveText(
+    "Planejamento semanal",
+  );
   await expect(
     page.getByRole("button", { name: "Ativar microfone", exact: true }),
   ).toHaveAttribute("aria-pressed", "true");
@@ -126,7 +132,7 @@ test("registration validation, create call, preferences, chat and end", async ({
     .getByRole("button", { name: "Ativar microfone", exact: true })
     .click();
   await expect(page.locator(".translated-text")).toHaveText(
-    "¿Cómo va el proyecto?",
+    "A tradução aparecerá aqui.",
   );
   await page
     .getByRole("button", { name: "Silenciar som", exact: true })
@@ -136,7 +142,7 @@ test("registration validation, create call, preferences, chat and end", async ({
   await expect(page.getByLabel("Ouço a outra pessoa em")).toHaveValue("ES-ES");
   await page.getByLabel("Ouço a outra pessoa em").selectOption("FR-FR");
   await expect(page.locator(".translated-text")).toHaveText(
-    "Comment avance le projet ?",
+    "A tradução aparecerá aqui.",
   );
   await page.getByRole("button", { name: "Fechar idiomas" }).click();
   await page.getByRole("button", { name: "Abrir chat" }).click();
@@ -221,7 +227,7 @@ test("login, join validation and deep-link reload", async ({ page }) => {
   await expect(page).toHaveURL(/\/call\/equipe-42$/);
 });
 
-test("reduced motion freezes ambient signal and preserves manual demo", async ({
+test("reduced motion freezes ambient signal and preserves the conversation preview", async ({
   page,
 }) => {
   await page.emulateMedia({ reducedMotion: "reduce" });
@@ -253,10 +259,7 @@ test("reduced motion freezes ambient signal and preserves manual demo", async ({
   );
   await page.goto("/call/demo-room");
   await expect(page.locator(".translated-text")).toHaveCSS("opacity", "1");
-  await page.getByRole("button", { name: "Próxima fala" }).click();
-  await expect(page.locator(".original-text")).toHaveText(
-    "Everything is going well.",
-  );
+  await expect(page.locator(".original-text")).toHaveText("Aguardando fala.");
 });
 
 test("signal renders pixels, animates, and can pause", async ({ page }) => {
@@ -326,27 +329,16 @@ test("narrow layout stays within the viewport", async ({ page }) => {
   }
 });
 
-test("translation follows the original and speakers alternate", async ({
-  page,
-}) => {
-  await page.emulateMedia({ reducedMotion: "no-preference" });
+test("call waits for real transcription without injecting sample phrases", async ({ page }) => {
   await page.clock.install();
   await page.goto("/call/demo-room");
-  await expect(page.locator(".original-text")).toHaveText(
-    "Como está o projeto?",
+  await expect(page.locator(".original-text")).toHaveText("Aguardando fala.");
+  await expect(page.locator(".translated-text")).toHaveText(
+    "A tradução aparecerá aqui.",
   );
-  await expect(page.locator(".translated-text")).not.toHaveClass(
-    /translation-ready/,
-  );
-  await page.clock.runFor(1400);
-  await expect(page.locator(".translated-text")).toHaveClass(
-    /translation-ready/,
-  );
-  await page.clock.runFor(6000);
-  await expect(page.locator(".original-text")).toHaveText(
-    "Everything is going well.",
-  );
-  await expect(page.locator(".speaker .participant-name")).toHaveText("Mateus");
+  await page.clock.runFor(8000);
+  await expect(page.locator(".original-text")).toHaveText("Aguardando fala.");
+  await expect(page.getByText("AGUARDANDO FALA", { exact: true })).toBeVisible();
 });
 
 test("Gemini transcripts and resampled binary audio reach the listener at 16 kHz", async ({
@@ -389,6 +381,7 @@ test("Gemini transcripts and resampled binary audio reach the listener at 16 kHz
 
 test("create uses the canonical code returned by the API", async ({ page }) => {
   await page.goto("/home");
+  await page.getByLabel("nome da reunião").fill("Alinhamento diário");
   await page.getByRole("button", { name: "Criar chamada" }).click();
   await expect(page).toHaveURL(/\/call\/sala-001\/setup$/);
   await expect(page.locator(".room-code")).toHaveText("sala-001");
@@ -400,6 +393,7 @@ test("enter rejects a full room when the user is not a participant", async ({
   const fullCall: MockCall = {
     id: 10,
     code: "lotada",
+    name: "Reunião completa",
     host_user_id: 2,
     status: "active",
     participants: [
@@ -487,6 +481,7 @@ test("direct call access requires joining first", async ({ page }) => {
   const waitingCall: MockCall = {
     id: 11,
     code: "convite",
+    name: "Conversa de convite",
     host_user_id: 2,
     status: "waiting",
     participants: [

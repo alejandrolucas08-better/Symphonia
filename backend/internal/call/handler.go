@@ -7,12 +7,15 @@ import (
 	"io"
 	"log"
 	"net/http"
+	"strings"
+	"unicode"
+	"unicode/utf8"
 
 	"github.com/institucional/symphonia/backend/internal/auth"
 )
 
 type callRepository interface {
-	Create(context.Context, int64, Language, Language) (*Call, error)
+	Create(context.Context, int64, string, Language, Language) (*Call, error)
 	GetByCode(context.Context, string) (*Call, error)
 	Join(context.Context, string, int64, Language, Language) (*Call, error)
 	UpdateLanguage(context.Context, string, int64, Language, Language) (*Call, error)
@@ -37,6 +40,11 @@ type languageRequest struct {
 	HeardLanguage  Language `json:"heard_language"`
 }
 
+type createRequest struct {
+	Name string `json:"name"`
+	languageRequest
+}
+
 func NewHandler(calls callRepository, notifiers ...Notifier) *Handler {
 	var notifier Notifier
 	if len(notifiers) > 0 {
@@ -46,12 +54,21 @@ func NewHandler(calls callRepository, notifiers ...Notifier) *Handler {
 }
 
 func (h *Handler) Create(w http.ResponseWriter, r *http.Request) {
-	request, ok := decodeLanguages(w, r)
-	if !ok {
+	var request createRequest
+	if !decodeRequest(w, r, &request) {
+		return
+	}
+	request.Name = strings.TrimSpace(request.Name)
+	if request.Name == "" || utf8.RuneCountInString(request.Name) > 80 || strings.ContainsFunc(request.Name, unicode.IsControl) {
+		writeJSON(w, http.StatusBadRequest, map[string]string{"error": "name must contain 1 to 80 characters"})
+		return
+	}
+	if !validLanguages(request.languageRequest) {
+		writeJSON(w, http.StatusBadRequest, map[string]string{"error": "spoken_language and heard_language must be supported languages"})
 		return
 	}
 	userID, _ := auth.UserIDFromContext(r.Context())
-	result, err := h.calls.Create(r.Context(), userID, request.SpokenLanguage, request.HeardLanguage)
+	result, err := h.calls.Create(r.Context(), userID, request.Name, request.SpokenLanguage, request.HeardLanguage)
 	h.respond(w, result, err, http.StatusCreated)
 }
 
@@ -122,21 +139,32 @@ func participantForUser(result *Call, userID int64) (Participant, bool) {
 
 func decodeLanguages(w http.ResponseWriter, r *http.Request) (languageRequest, bool) {
 	var request languageRequest
-	decoder := json.NewDecoder(r.Body)
-	decoder.DisallowUnknownFields()
-	if err := decoder.Decode(&request); err != nil {
-		writeJSON(w, http.StatusBadRequest, map[string]string{"error": "invalid request body"})
+	if !decodeRequest(w, r, &request) {
 		return request, false
 	}
-	if err := decoder.Decode(&struct{}{}); !errors.Is(err, io.EOF) {
-		writeJSON(w, http.StatusBadRequest, map[string]string{"error": "invalid request body"})
-		return request, false
-	}
-	if !ValidLanguage(request.SpokenLanguage) || !ValidLanguage(request.HeardLanguage) {
+	if !validLanguages(request) {
 		writeJSON(w, http.StatusBadRequest, map[string]string{"error": "spoken_language and heard_language must be supported languages"})
 		return request, false
 	}
 	return request, true
+}
+
+func decodeRequest(w http.ResponseWriter, r *http.Request, request any) bool {
+	decoder := json.NewDecoder(r.Body)
+	decoder.DisallowUnknownFields()
+	if err := decoder.Decode(request); err != nil {
+		writeJSON(w, http.StatusBadRequest, map[string]string{"error": "invalid request body"})
+		return false
+	}
+	if err := decoder.Decode(&struct{}{}); !errors.Is(err, io.EOF) {
+		writeJSON(w, http.StatusBadRequest, map[string]string{"error": "invalid request body"})
+		return false
+	}
+	return true
+}
+
+func validLanguages(request languageRequest) bool {
+	return ValidLanguage(request.SpokenLanguage) && ValidLanguage(request.HeardLanguage)
 }
 
 func (h *Handler) respond(w http.ResponseWriter, result *Call, err error, successStatus int) {

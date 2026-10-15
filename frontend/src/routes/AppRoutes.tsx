@@ -19,7 +19,7 @@ export function AppRoutes() {
   const { pathname } = useLocation();
   const previous = useRef(pathname);
   useEffect(() => {
-    document.title = `${titles[pathname] ?? (pathname.endsWith("/setup") ? "Pré-chamada" : pathname.startsWith("/call/") ? "Daily meeting" : "Página não encontrada")} | Symphonia`;
+    document.title = `${titles[pathname] ?? (pathname.endsWith("/setup") ? "Pré-chamada" : pathname.startsWith("/call/") ? "Reunião" : "Página não encontrada")} | Symphonia`;
     window.scrollTo(0, 0);
     if (previous.current !== pathname) {
       const main = document.getElementById("main-content");

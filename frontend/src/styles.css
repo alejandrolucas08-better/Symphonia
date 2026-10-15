@@ -767,6 +767,12 @@ main:focus {
   white-space: nowrap;
 }
 .room-heading {
+  min-width: 0;
+  max-width: 50%;
+  overflow: hidden;
+  text-align: center;
+  text-overflow: ellipsis;
+  white-space: nowrap;
   font-size: 17px;
 }
 .room-heading .muted {
@@ -984,6 +990,37 @@ main:focus {
 .home-action form {
   width: 100%;
 }
+.create-call-form {
+  display: grid;
+  gap: 18px;
+}
+.meeting-name-field {
+  display: grid;
+  gap: 5px;
+}
+.meeting-name-field label {
+  color: var(--text-secondary);
+  font-size: 14px;
+}
+.meeting-name-field input {
+  width: 100%;
+  min-height: 48px;
+  padding: 10px 0 12px;
+  background: transparent;
+  border: 0;
+  border-bottom: 1px solid var(--text);
+  font-size: 18px;
+}
+.meeting-name-field input:focus {
+  border-color: var(--primary);
+}
+.meeting-name-field input[aria-invalid="true"] {
+  border-color: var(--error);
+}
+.create-call-form .error-message,
+.home-action form .error-message {
+  margin-top: 0;
+}
 .join-field {
   display: flex;
   border-bottom: 1px solid var(--text);
@@ -1026,6 +1063,8 @@ main:focus {
   border-bottom: 1px solid var(--line);
 }
 .setup-heading h1 {
+  max-width: 760px;
+  overflow-wrap: anywhere;
   font-size: 40px;
   font-weight: 300;
   margin-top: 16px;
@@ -1033,6 +1072,15 @@ main:focus {
 .setup-heading h1 strong {
   font-weight: 500;
   color: var(--primary);
+}
+.setup-subtitle {
+  margin-top: 8px;
+  color: var(--text-secondary);
+  font-size: 18px;
+}
+.setup-subtitle strong {
+  color: var(--primary);
+  font-weight: 500;
 }
 .room-code {
   overflow-wrap: anywhere;
@@ -1624,6 +1672,13 @@ main:focus {
   margin-top: 7px;
   font-size: 23px;
   font-weight: 400;
+}
+.invite-name {
+  max-width: 480px;
+  margin-top: 5px;
+  overflow-wrap: anywhere;
+  color: var(--text-secondary);
+  font-size: 14px;
 }
 .invite-content {
   display: grid;

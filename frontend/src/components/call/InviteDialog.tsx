@@ -21,10 +21,12 @@ async function copyText(value: string) {
 
 export function InviteDialog({
   code,
+  name,
   open,
   onClose,
 }: {
   code: string;
+  name: string;
   open: boolean;
   onClose: () => void;
 }) {
@@ -57,7 +59,7 @@ export function InviteDialog({
 
   const share = async () => {
     const data = {
-      title: `Sala ${code} | Symphonia`,
+      title: `${name} | Symphonia`,
       text: "Entre na minha sala no Symphonia.",
       url: inviteUrl,
     };
@@ -89,6 +91,7 @@ export function InviteDialog({
         <div>
           <p className="eyebrow">CONVIDAR PARA A SALA</p>
           <h2 id="invite-title">Compartilhe a conversa.</h2>
+          <p className="invite-name">{name}</p>
         </div>
         <button
           className="icon-button"

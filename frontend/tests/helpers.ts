@@ -127,6 +127,7 @@ export type MockCallParticipant = {
 export type MockCall = {
   id: number;
   code: string;
+  name: string;
   host_user_id: number;
   status: "waiting" | "active" | "ended";
   participants: MockCallParticipant[];
@@ -203,6 +204,7 @@ function seededCall(code: string): MockCall {
   return {
     id: code === "demo-room" ? 1 : 2,
     code,
+    name: code === "demo-room" ? "Planejamento semanal" : "Conversa de equipe",
     host_user_id: defaultUser.id,
     status: code === "demo-room" ? "active" : "waiting",
     participants: [
@@ -385,6 +387,7 @@ export async function mockCallApi(
     const action = parts[3];
     const payload = request.postDataJSON() as
       | {
+          name?: string;
           spoken_language: MockCallParticipant["spoken_language"];
           heard_language: MockCallParticipant["heard_language"];
         }
@@ -395,6 +398,7 @@ export async function mockCallApi(
       const call: MockCall = {
         id: nextId++,
         code: canonicalCode,
+        name: payload!.name!,
         host_user_id: user.id,
         status: "waiting",
         participants: [

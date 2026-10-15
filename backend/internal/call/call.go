@@ -30,6 +30,7 @@ type Participant struct {
 type Call struct {
 	ID           int64         `json:"id"`
 	Code         string        `json:"code"`
+	Name         string        `json:"name"`
 	HostUserID   int64         `json:"host_user_id"`
 	Status       Status        `json:"status"`
 	Participants []Participant `json:"participants"`

@@ -17,7 +17,7 @@ import { StatusBadge } from "../components/ui/StatusBadge";
 import { useConversation } from "../hooks/useConversation";
 import { transcripts } from "../data/mocks";
 
-function ConversationDemo() {
+function ConversationPreview() {
   const { turn, key, ready, animated, paused, setPaused, next } =
     useConversation();
   const phrase = transcripts[turn];
@@ -26,13 +26,10 @@ function ConversationDemo() {
       <div className="demo-top">
         <span className="eyebrow">UMA CONVERSA, DOIS IDIOMAS</span>
         <div className="demo-controls">
-          <span className="demo-tag">simulação</span>
           <button
             className="icon-button"
-            title={paused ? "Reproduzir demonstração" : "Pausar demonstração"}
-            aria-label={
-              paused ? "Reproduzir demonstração" : "Pausar demonstração"
-            }
+            title={paused ? "Retomar conversa" : "Pausar conversa"}
+            aria-label={paused ? "Retomar conversa" : "Pausar conversa"}
             onClick={() => setPaused(!paused)}
           >
             {paused ? <Play size={17} /> : <Pause size={17} />}
@@ -235,7 +232,7 @@ export function Landing() {
                 <em>mesma frequência.</em>
               </h3>
             </div>
-            <ConversationDemo />
+            <ConversationPreview />
           </Reveal>
         </section>
 

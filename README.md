@@ -93,8 +93,8 @@ The following steps cannot be automated by the repository:
 5. Open the same call as two different users, choose different spoken/heard
    languages, allow microphone access and speak. For PT↔EN, configure A to speak/hear
    Portuguese and B to speak/hear English. The listener receives 16 kHz binary
-   translated PCM (resampled from Gemini's 24 kHz); the call screen replaces its demo text when real input
-   and output transcription events arrive.
+   translated PCM (resampled from Gemini's 24 kHz); the call screen displays input
+   and output transcription events as they arrive.
 
 Credentials stay in the backend. Vertex ADC takes precedence when a project is
 configured; API-key compatibility remains available without a project. Provider
@@ -172,7 +172,7 @@ Use plain HTTP only on a trusted local network: bearer tokens and audio traffic
 are not encrypted. For any untrusted network or internet deployment, terminate
 HTTPS at a reverse proxy and serve the frontend through that proxy.
 
-The public landing-page demonstration uses local sample phrases. Authentication,
+The public landing-page conversation preview uses local sample phrases. Authentication,
 calls, microphone streaming and Gemini translation require the backend and database.
 
 Routes: `/`, `/login`, `/register`, `/home`, `/call/:id/setup`, and `/call/:id`.
@@ -188,9 +188,9 @@ npx playwright install chromium
 npm run test:e2e
 ```
 
-The browser tests cover desktop, tablet, mobile, route navigation, mock forms, call controls, chat, animated signal rendering, and reduced motion. Playwright starts a local Vite server when needed. Test screenshots and traces are written to the ignored `frontend/test-results/` directory.
+The browser tests cover desktop, tablet, mobile, route navigation, intercepted API flows, call controls, chat, animated signal rendering, and reduced motion. Playwright starts a local Vite server when needed. Test screenshots and traces are written to the ignored `frontend/test-results/` directory.
 
-See [frontend implementation notes](docs/frontend.md) for the component structure and demo behavior.
+See [frontend implementation notes](docs/frontend.md) for the component structure and current behavior.
 
 ## Running the Backend
 

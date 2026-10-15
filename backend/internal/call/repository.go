@@ -43,7 +43,7 @@ func randomCode() (string, error) {
 	return string(code), nil
 }
 
-func (r *Repository) Create(ctx context.Context, userID int64, spoken, heard Language) (*Call, error) {
+func (r *Repository) Create(ctx context.Context, userID int64, name string, spoken, heard Language) (*Call, error) {
 	for attempt := 0; attempt < 5; attempt++ {
 		code, err := randomCode()
 		if err != nil {
@@ -56,8 +56,8 @@ func (r *Repository) Create(ctx context.Context, userID int64, spoken, heard Lan
 
 		var callID int64
 		err = tx.QueryRow(ctx,
-			`INSERT INTO calls (code, host_user_id) VALUES ($1, $2) RETURNING id`,
-			code, userID,
+			`INSERT INTO calls (code, name, host_user_id) VALUES ($1, $2, $3) RETURNING id`,
+			code, name, userID,
 		).Scan(&callID)
 		if err != nil {
 			_ = tx.Rollback(ctx)
@@ -224,9 +224,9 @@ type querier interface {
 func loadCall(ctx context.Context, db querier, code string) (*Call, error) {
 	result := &Call{Participants: []Participant{}}
 	err := db.QueryRow(ctx,
-		`SELECT id, code, host_user_id, status, created_at, updated_at, ended_at
+		`SELECT id, code, name, host_user_id, status, created_at, updated_at, ended_at
 		 FROM calls WHERE code = $1`, code,
-	).Scan(&result.ID, &result.Code, &result.HostUserID, &result.Status,
+	).Scan(&result.ID, &result.Code, &result.Name, &result.HostUserID, &result.Status,
 		&result.CreatedAt, &result.UpdatedAt, &result.EndedAt)
 	if errors.Is(err, pgx.ErrNoRows) {
 		return nil, ErrCallNotFound

@@ -14,6 +14,7 @@ import (
 
 type fakeRepository struct {
 	createUserID int64
+	createName   string
 	result       *Call
 	err          error
 }
@@ -30,8 +31,9 @@ func (n *recordingNotifier) LanguageChanged(string, Participant)   { n.language+
 func (n *recordingNotifier) ParticipantLeft(string, int64)         { n.left++ }
 func (n *recordingNotifier) CallEnded(string, int64)               { n.ended++ }
 
-func (f *fakeRepository) Create(_ context.Context, userID int64, _, _ Language) (*Call, error) {
+func (f *fakeRepository) Create(_ context.Context, userID int64, name string, _, _ Language) (*Call, error) {
 	f.createUserID = userID
+	f.createName = name
 	return f.result, f.err
 }
 
@@ -72,7 +74,7 @@ func TestCreateValidatesLanguages(t *testing.T) {
 	repository := &fakeRepository{}
 	handler := NewHandler(repository)
 	request := httptest.NewRequest(http.MethodPost, "/api/calls", strings.NewReader(
-		`{"spoken_language":"EN-US","heard_language":"DE-DE"}`))
+		`{"name":"Planejamento","spoken_language":"EN-US","heard_language":"DE-DE"}`))
 	response := httptest.NewRecorder()
 
 	handler.Create(response, request)
@@ -94,7 +96,7 @@ func TestCreateUsesAuthenticatedUser(t *testing.T) {
 		t.Fatalf("GenerateToken: %v", err)
 	}
 	request := httptest.NewRequest(http.MethodPost, "/api/calls", strings.NewReader(
-		`{"spoken_language":"EN-US","heard_language":"PT-BR"}`))
+		`{"name":"  Planejamento semanal  ","spoken_language":"EN-US","heard_language":"PT-BR"}`))
 	request.Header.Set("Authorization", "Bearer "+token)
 	response := httptest.NewRecorder()
 
@@ -105,6 +107,33 @@ func TestCreateUsesAuthenticatedUser(t *testing.T) {
 	}
 	if repository.createUserID != 42 {
 		t.Fatalf("create user ID = %d, want 42", repository.createUserID)
+	}
+	if repository.createName != "Planejamento semanal" {
+		t.Fatalf("create name = %q, want trimmed meeting name", repository.createName)
+	}
+}
+
+func TestCreateValidatesName(t *testing.T) {
+	for _, body := range []string{
+		`{"name":"","spoken_language":"EN-US","heard_language":"PT-BR"}`,
+		`{"name":"   ","spoken_language":"EN-US","heard_language":"PT-BR"}`,
+		`{"name":"reunião\nsemanal","spoken_language":"EN-US","heard_language":"PT-BR"}`,
+		`{"name":"` + strings.Repeat("a", 81) + `","spoken_language":"EN-US","heard_language":"PT-BR"}`,
+	} {
+		repository := &fakeRepository{}
+		handler := NewHandler(repository)
+		request := httptest.NewRequest(http.MethodPost, "/api/calls", strings.NewReader(body))
+		response := httptest.NewRecorder()
+
+		handler.Create(response, request)
+
+		if response.Code != http.StatusBadRequest {
+			t.Fatalf("status = %d, want %d for %s", response.Code, http.StatusBadRequest, body)
+		}
+		if repository.createUserID != 0 {
+			t.Fatal("repository was called for an invalid name")
+		}
+		assertError(t, response, "name must contain 1 to 80 characters")
 	}
 }
 

@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from "react";
-import { Pause, Play, PhoneOff, Share2 } from "lucide-react";
+import { PhoneOff, Share2 } from "lucide-react";
 import { useNavigate, useParams } from "react-router-dom";
 import { AppHeader } from "../components/layout/AppHeader";
 import { Participant } from "../components/call/Participant";
@@ -12,10 +12,9 @@ import { StatusBadge } from "../components/ui/StatusBadge";
 import { initialsFor } from "../components/ui/Avatar";
 import { useDemo } from "../contexts/DemoContext";
 import { useAuth } from "../hooks/useAuth";
-import { useConversation } from "../hooks/useConversation";
 import { useCallSocket } from "../hooks/useCallSocket";
 import { useCallAudio } from "../hooks/useCallAudio";
-import { languages, phrases } from "../data/mocks";
+import { languages } from "../data/mocks";
 import { api, userFacingError } from "../services/api";
 import type { Call as CallData } from "../types/call";
 import type { LanguageCode, Person } from "../types/demo";
@@ -29,8 +28,6 @@ export function Call() {
   const { id } = useParams();
   const { settings, updateSettings } = useDemo();
   const { token, user } = useAuth();
-  const { turn, key, ready, animated, paused, setPaused, next } =
-    useConversation();
   const [call, setCall] = useState<CallData | null>(null);
   const [loading, setLoading] = useState(true);
   const [requestError, setRequestError] = useState("");
@@ -102,6 +99,10 @@ export function Call() {
       window.clearInterval(interval);
     };
   }, [id, navigate, token, user?.id]);
+
+  useEffect(() => {
+    if (call?.name) document.title = `${call.name} | Symphonia`;
+  }, [call?.name]);
 
   useEffect(() => {
     setMessages([]);
@@ -298,10 +299,10 @@ export function Call() {
   if (loading || !call) {
     return (
       <div className="call-page">
-        <AppHeader call />
+        <AppHeader call callName="Reunião" />
         <main id="main-content" className="container call-main">
           <h1>
-            Daily meeting <span className="room-code">/ {id}</span>
+            Reunião <span className="room-code">/ {id}</span>
           </h1>
           {loading ? (
             <p role="status">Carregando chamada...</p>
@@ -326,10 +327,10 @@ export function Call() {
       )?.short ?? participant.spoken_language,
     status: "listening",
   }));
-  const featured = people.length === 1 ? [people[0], people[0]] : people;
   const speaker =
     people.find((person) => person.id === liveTranscript?.userId) ??
-    featured[turn % featured.length];
+    people.find((person) => person.id === user?.id) ??
+    people[0];
   const source = liveTranscript?.source ?? speaker?.languageCode ?? settings.spoken;
   const target = liveTranscript?.target ?? settings.heard;
   const silent = speaker
@@ -339,16 +340,17 @@ export function Call() {
   const isHost = call.host_user_id === user?.id;
 
   return (
-    <div className={`call-page ${paused ? "motion-paused" : ""}`}>
+    <div className="call-page">
       <AppHeader
         call
+        callName={call.name}
         participantCount={people.length}
         realtimeStatus={socket.status}
       />
       <main id="main-content" className="container call-main">
         <div className="call-topline">
           <div className="call-title">
-            <h1>Daily meeting</h1>
+            <h1>{call.name}</h1>
             <button
               className="room-invite-trigger"
               type="button"
@@ -366,14 +368,6 @@ export function Call() {
               {String(Math.floor(seconds / 60)).padStart(2, "0")}:
               {String(seconds % 60).padStart(2, "0")}
             </span>
-            <button
-              className="icon-button"
-              aria-label={paused ? "Retomar simulação" : "Pausar simulação"}
-              title={paused ? "Retomar simulação" : "Pausar simulação"}
-              onClick={() => setPaused(!paused)}
-            >
-              {paused ? <Play size={15} /> : <Pause size={15} />}
-            </button>
           </div>
         </div>
         {requestError && (
@@ -417,17 +411,19 @@ export function Call() {
                 aria-label="Participante em destaque"
               >
                 <div className="stage-label">
-                  <StatusBadge>TRADUÇÃO ATIVA</StatusBadge>
+                  <StatusBadge active={Boolean(liveTranscript)}>
+                    {liveTranscript ? "TRADUÇÃO ATIVA" : "AGUARDANDO FALA"}
+                  </StatusBadge>
                   <span className="demo-tag">
-                    {liveTranscript ? "Gemini Live" : "transcrição demonstrativa"}
+                    {liveTranscript ? "Gemini Live" : "transcrição em tempo real"}
                   </span>
                 </div>
                 <Participant
                   person={speaker}
                   currentUserId={user?.id}
-                  active={!silent}
+                  active={Boolean(liveTranscript) && !silent}
                   muted={silent}
-                  animated={liveTranscript ? !silent : animated}
+                  animated={Boolean(liveTranscript) && !silent}
                 />
               </section>
               <Transcript
@@ -435,18 +431,17 @@ export function Call() {
                 original={
                   silent
                     ? "Microfone desativado."
-                    : (liveTranscript?.original ?? phrases[source][turn])
+                    : (liveTranscript?.original ?? "Aguardando fala.")
                 }
                 translated={
                   silent
                     ? "Aguardando sua voz."
-                    : (liveTranscript?.translated ?? phrases[target][turn])
+                    : (liveTranscript?.translated ?? "A tradução aparecerá aqui.")
                 }
                 source={source}
                 target={target}
-                ready={silent || (liveTranscript ? Boolean(liveTranscript.translated) : ready)}
-                turnKey={liveTranscript ? liveTranscript.userId : key}
-                next={next}
+                ready={silent || !liveTranscript || Boolean(liveTranscript.translated)}
+                turnKey={liveTranscript?.userId ?? 0}
               />
             </div>
             <aside className="call-sidebar">
@@ -485,6 +480,7 @@ export function Call() {
       </main>
       <InviteDialog
         code={call.code}
+        name={call.name}
         open={inviteOpen}
         onClose={() => setInviteOpen(false)}
       />

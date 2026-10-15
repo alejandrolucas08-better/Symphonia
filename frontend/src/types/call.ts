@@ -11,6 +11,7 @@ export type CallParticipant = {
 export type Call = {
   id: number;
   code: string;
+  name: string;
   host_user_id: number;
   status: "waiting" | "active" | "ended";
   participants: CallParticipant[];
@@ -22,4 +23,8 @@ export type Call = {
 export type CallLanguagePayload = {
   spoken_language: LanguageCode;
   heard_language: LanguageCode;
+};
+
+export type CreateCallPayload = CallLanguagePayload & {
+  name: string;
 };
