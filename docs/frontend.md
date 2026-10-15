@@ -4,7 +4,7 @@
 
 The application uses backend authentication and persisted calls, captures PCM16 microphone audio through an AudioWorklet, exchanges call events and audio over an authenticated WebSocket, displays provider transcriptions, and plays translated PCM at 24 kHz. The public landing-page conversation preview uses local sample content; authenticated screens use backend data.
 
-All six routes can be loaded directly. Login and registration call the backend, and the bearer token persists locally so sessions survive a tab close. Registration validates matching passwords before submitting. Call creation requires a meeting name and persists it with the room.
+All six routes can be loaded directly. Login and registration call the backend, and the bearer token persists locally so sessions survive a tab close. Registration validates matching passwords before submitting. Call creation accepts an optional meeting name, defaulting to `Meeting`, and persists it with the room.
 
 ## Structure
 

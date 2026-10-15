@@ -381,9 +381,9 @@ test("Gemini transcripts and resampled binary audio reach the listener at 16 kHz
 
 test("create uses the canonical code returned by the API", async ({ page }) => {
   await page.goto("/home");
-  await page.getByLabel("nome da reunião").fill("Alinhamento diário");
   await page.getByRole("button", { name: "Criar chamada" }).click();
   await expect(page).toHaveURL(/\/call\/sala-001\/setup$/);
+  await expect(page.getByRole("heading", { level: 1 })).toHaveText("Meeting");
   await expect(page.locator(".room-code")).toHaveText("sala-001");
 });
 

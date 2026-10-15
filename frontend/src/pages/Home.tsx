@@ -56,11 +56,7 @@ export function Home() {
               onSubmit={async (event) => {
                 event.preventDefault();
                 if (!token || createPending) return;
-                const cleanName = meetingName.trim();
-                if (!cleanName) {
-                  setCreateError("Dê um nome para a reunião.");
-                  return;
-                }
+                const cleanName = meetingName.trim() || "Meeting";
                 setCreatePending(true);
                 setCreateError("");
                 try {
@@ -81,9 +77,8 @@ export function Home() {
                 <input
                   id="meeting-name"
                   value={meetingName}
-                  placeholder="ex.: planejamento semanal"
+                  placeholder="Meeting"
                   maxLength={80}
-                  required
                   aria-invalid={!!createError}
                   aria-describedby={createError ? "create-error" : undefined}
                   onChange={(event) => {

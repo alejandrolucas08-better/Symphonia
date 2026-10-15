@@ -1,0 +1,1 @@
+ALTER TABLE calls ALTER COLUMN name SET DEFAULT 'Meeting';

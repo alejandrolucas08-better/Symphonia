@@ -45,6 +45,8 @@ type createRequest struct {
 	languageRequest
 }
 
+const defaultCallName = "Meeting"
+
 func NewHandler(calls callRepository, notifiers ...Notifier) *Handler {
 	var notifier Notifier
 	if len(notifiers) > 0 {
@@ -59,7 +61,10 @@ func (h *Handler) Create(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	request.Name = strings.TrimSpace(request.Name)
-	if request.Name == "" || utf8.RuneCountInString(request.Name) > 80 || strings.ContainsFunc(request.Name, unicode.IsControl) {
+	if request.Name == "" {
+		request.Name = defaultCallName
+	}
+	if utf8.RuneCountInString(request.Name) > 80 || strings.ContainsFunc(request.Name, unicode.IsControl) {
 		writeJSON(w, http.StatusBadRequest, map[string]string{"error": "name must contain 1 to 80 characters"})
 		return
 	}

@@ -1,11 +1,11 @@
 ALTER TABLE calls ADD COLUMN IF NOT EXISTS name VARCHAR(80);
 
 UPDATE calls
-SET name = 'Reunião ' || UPPER(code)
+SET name = 'Meeting'
 WHERE name IS NULL OR BTRIM(name) = '';
 
 ALTER TABLE calls ALTER COLUMN name SET NOT NULL;
-ALTER TABLE calls ALTER COLUMN name SET DEFAULT 'Nova reunião';
+ALTER TABLE calls ALTER COLUMN name SET DEFAULT 'Meeting';
 
 DO $$
 BEGIN

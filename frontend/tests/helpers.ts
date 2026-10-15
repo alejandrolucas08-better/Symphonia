@@ -398,7 +398,7 @@ export async function mockCallApi(
       const call: MockCall = {
         id: nextId++,
         code: canonicalCode,
-        name: payload!.name!,
+        name: payload?.name?.trim() || "Meeting",
         host_user_id: user.id,
         status: "waiting",
         participants: [

@@ -115,8 +115,6 @@ func TestCreateUsesAuthenticatedUser(t *testing.T) {
 
 func TestCreateValidatesName(t *testing.T) {
 	for _, body := range []string{
-		`{"name":"","spoken_language":"EN-US","heard_language":"PT-BR"}`,
-		`{"name":"   ","spoken_language":"EN-US","heard_language":"PT-BR"}`,
 		`{"name":"reunião\nsemanal","spoken_language":"EN-US","heard_language":"PT-BR"}`,
 		`{"name":"` + strings.Repeat("a", 81) + `","spoken_language":"EN-US","heard_language":"PT-BR"}`,
 	} {
@@ -134,6 +132,23 @@ func TestCreateValidatesName(t *testing.T) {
 			t.Fatal("repository was called for an invalid name")
 		}
 		assertError(t, response, "name must contain 1 to 80 characters")
+	}
+}
+
+func TestCreateUsesDefaultNameWhenOmitted(t *testing.T) {
+	repository := &fakeRepository{result: &Call{ID: 9, Code: "abcd1234", Status: StatusWaiting}}
+	handler := NewHandler(repository)
+	request := httptest.NewRequest(http.MethodPost, "/api/calls", strings.NewReader(
+		`{"spoken_language":"EN-US","heard_language":"PT-BR"}`))
+	response := httptest.NewRecorder()
+
+	handler.Create(response, request)
+
+	if response.Code != http.StatusCreated {
+		t.Fatalf("status = %d, want %d: %s", response.Code, http.StatusCreated, response.Body.String())
+	}
+	if repository.createName != defaultCallName {
+		t.Fatalf("create name = %q, want %q", repository.createName, defaultCallName)
 	}
 }
 
